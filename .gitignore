@@ -1,0 +1,11 @@
+node_modules/
+.vercel
+.env
+.env.local
+*firebase-adminsdk*.json
+.DS_Store
+
+# OneDrive / Windows cruft
+*.url
+desktop.ini
+Thumbs.db
