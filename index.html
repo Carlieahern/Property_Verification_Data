@@ -135,7 +135,8 @@
   .checkline{font-size:13.5px;color:var(--muted);margin:14px 0 10px;font-weight:600}
   .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
   .meta{font-size:12.5px;color:var(--muted);margin-top:12px}
-  .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .share-note{margin-top:16px;font-size:13px;color:var(--muted);font-weight:600}
+  .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
   .share input{font-size:13px;background:#f7f9fc}
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;background:var(--ink);color:#fff;
     padding:11px 18px;border-radius:8px;font-size:14px;box-shadow:0 6px 22px rgba(0,0,0,.2);z-index:80}
@@ -187,6 +188,7 @@
       <div class="progress"><span id="progBar" style="width:0%"></span></div>
       <div class="prog-label" id="progLabel"></div>
       <div id="doneBanner" class="banner good hidden" style="margin-top:14px"></div>
+      <div class="share-note">Copy this link to send to any RPM employee assisting you with verification.</div>
       <div class="share">
         <input type="text" id="shareUrl" readonly>
         <button class="btn ghost sm" id="copyBtn">Copy link</button>
