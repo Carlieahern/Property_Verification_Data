@@ -153,9 +153,16 @@
           Any day not mentioned is recorded as Closed, and the Regional still confirms it on screen.</p>
       </details>
       <div id="preview" class="hidden"></div>
+      <div class="row" style="max-width:520px">
+        <label class="fl" for="mode">If this wave name already exists</label>
+        <select id="mode">
+          <option value="update">Add or update — never touch anything already confirmed</option>
+          <option value="replace">Replace — wipe this wave and start over</option>
+        </select>
+        <div class="mini" id="modeNote" style="margin-top:6px"></div>
+      </div>
       <div class="inline" style="margin-top:6px">
         <button class="btn" id="importBtn" disabled>Import wave</button>
-        <label class="mini"><input type="checkbox" id="overwrite" style="width:auto;margin-right:5px">Replace the wave if the name already exists</label>
       </div>
       <div id="importMsg" style="margin-top:12px"></div>
     </div>
@@ -541,21 +548,49 @@ function showPreview(rows, sheetName){
   box.appendChild(el('div',{class:'mini',style:'margin-bottom:12px',text:'Columns found: '+headers.join(' · ')}));
 }
 
+function modeNote(){
+  var m = $('#mode').value;
+  $('#modeNote').textContent = m === 'replace'
+    ? 'Deletes every property and every confirmation in this wave, then rebuilds it from the file. Use only to start a wave over.'
+    : 'Adds properties that are new, fills in blanks on properties nobody has confirmed yet, and leaves confirmed properties completely alone. Answers people have already typed are never overwritten.';
+  $('#modeNote').style.color = m === 'replace' ? '#b3261e' : '';
+}
+$('#mode').addEventListener('change', modeNote);
+modeNote();
+
 $('#importBtn').addEventListener('click', function(ev){
   var name = $('#waveName').value.trim();
   if(!name) return toast('Give the wave a name.');
   if(!state.parsedRows) return toast('Choose a file first.');
+  var mode = $('#mode').value;
+  if(mode === 'replace' &&
+     !confirm('Replace "'+name+'"?\n\nEvery property and every confirmation already collected in that wave will be deleted and rebuilt from this file. This cannot be undone.')) return;
+
   var b = ev.currentTarget; b.disabled = true; b.textContent = 'Importing…';
 
   api('/api/import',{ method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ waveName:name, dueDate:$('#dueDate').value||null,
       transitionDate:$('#transitionDate').value||null,
-      rows: state.parsedRows, overwrite: $('#overwrite').checked }) })
+      rows: state.parsedRows, mode: mode }) })
     .then(function(r){
       var box = $('#importMsg'); box.innerHTML='';
+
+      var parts = [];
+      if(r.added) parts.push(r.added+' added');
+      if(r.updated) parts.push(r.updated+' updated');
+      if(r.unchanged) parts.push(r.unchanged+' already up to date');
       box.appendChild(el('div',{class:'banner good',
-        text:'Imported '+r.imported+' properties across '+r.regionals+' regionals into "'+r.waveName+'".'
+        text:'"'+r.waveName+'" now has '+r.totalInWave+' properties across '+r.regionals+' regionals'
+             + (parts.length ? ' — ' + parts.join(', ') + '.' : '.')
              + (r.skipped ? ' Skipped '+r.skipped+' empty rows.' : '')}));
+
+      if(r.skippedConfirmed){
+        var names = (r.skippedConfirmedNames||[]).join(', ');
+        box.appendChild(el('div',{class:'banner info',
+          text:'Left alone: '+r.skippedConfirmed+' propert'+(r.skippedConfirmed===1?'y':'ies')
+               +' already confirmed, so nothing anyone signed off was changed.'
+               + (names ? ' (' + names + (r.skippedConfirmed > (r.skippedConfirmedNames||[]).length ? ', …' : '') + ')' : '')}));
+      }
       if(r.hoursParsed || r.hoursUnparsed){
         box.appendChild(el('div',{class: r.hoursUnparsed ? 'banner warn' : 'banner info',
           text: 'Office hours: '+(r.hoursParsed||0)+' loaded into the day/time picker'

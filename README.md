@@ -90,16 +90,23 @@ Provider becomes `HappyCo` and Directions to Forward becomes `Auto Forwards`, bo
 ### Re-importing a wave
 
 Property records are keyed on property code + name, so re-importing never creates
-duplicates.
+duplicates. Pick a mode on the import form.
 
-| | Result |
-|---|---|
-| Same wave name, *replace* unticked | Blocked. Nothing changes. |
-| Same wave name, *replace* ticked | Wave is **wiped and rebuilt** — all confirmations lost |
-| Different name | New wave alongside the old one |
+**Add or update** — the default, and safe to run as often as you like:
 
-There is no merge mode yet. Re-importing a wave to add data throws away confirmations
-already collected.
+- properties in the file that are not in the wave yet are **added**
+- properties nobody has confirmed have their **blanks filled in** from the file
+- an answer somebody already typed is **never overwritten**
+- properties that are already **confirmed are skipped entirely** — fields, signature and
+  all — and the result tells you how many were left alone
+
+So you can import a partial sheet now, let people start work, and re-import later with
+more information filled in. Nothing anyone has signed off is disturbed.
+
+**Replace** wipes the wave and rebuilds it from the file, losing every confirmation
+collected so far. It asks first. Use it only to start a wave over.
+
+A wave name that does not exist yet is simply created.
 
 ---
 
@@ -148,7 +155,7 @@ api/
   waves.js          wave list; Regionals merged across open waves
   portfolio.js      one Regional's properties, grouped by wave, newest first
   save.js           save / confirm, and the server-side lock
-  import.js         creates a wave from a spreadsheet
+  import.js         create / merge / replace a wave from a spreadsheet
   export.js         builds the Excel report
   admin.js          dashboard, settings, reopen, delete
   _lib/
@@ -162,5 +169,4 @@ Data lives under `pvWaves/{waveId}` with `properties` and `regionals` subcollect
 
 ### Known gaps
 
-- No merge mode on re-import (see above)
 - `ADMIN_KEY` is currently `admin`, which is guessable; `/admin` can delete a wave
