@@ -1,108 +1,68 @@
 # Property Detail Verification
 
-An internal tool for getting property details confirmed by the Regional who owns them,
-one wave at a time, ahead of each CRMiQ transition.
+Gets property details confirmed by the Regional who owns them, one wave at a time,
+ahead of each CRMiQ transition.
 
-- **One link** goes out to everyone. A person picks their name and sees every open
-  wave that belongs to them, newest wave on top.
-- **Line by line.** Each field has its own *Correct* / *Needs fixing* buttons. A property
-  cannot be confirmed until every line has been actioned individually — there is no
-  single button that waves the whole thing through.
+Live at **https://property-verification-data.vercel.app**
+
+- **One link** for everyone, every wave. A person picks their name and sees each open
+  wave that belongs to them, newest wave on top. Finished waves stay visible below.
+- **Line by line.** Every field has its own *Correct* / *Needs fixing*. A property cannot
+  be confirmed until each line has been actioned individually — there is no single button
+  that waves the whole thing through.
 - **Blanks must be filled.** Where nothing is on file there is nothing to verify, so the
-  field is presented as required entry rather than as something to confirm.
-- **Confirmation is final.** Confirming locks the property. The reviewer is told to
-  message Carlie on Teams, and Carlie reopens it from the admin page.
-- **Progress rolls up per Regional.** When someone's whole portfolio is done, Carlie gets
-  an email.
+  field is presented as required entry rather than something to confirm.
+- **Signed per property.** A *Completed by* box at the end of each property, blank every
+  time by design.
+- **Confirmation is final.** Confirming locks the property, in the browser and on the
+  server. The reviewer is told to message Carlie, who reopens it from the admin page.
+- **No email.** Progress is tracked in the admin page, which lists who is still
+  outstanding and lets you copy that list to chase people yourself.
 
 ---
 
-## 1. What you need before deploying
+## Everyday use
 
-| Thing | Why |
-|---|---|
-| A **new** Firebase project | Stores the answers. Must be its own project — see the warning below. |
-| A Vercel account | Hosts the site and runs the daily reminder job. |
-| A GitHub repo | How Vercel gets the code. |
-| An email provider (optional, later) | Sends invites, reminders and completion alerts. |
+### Running a wave
 
-> ### Do not point this at `rpm-site-level-assumptions`
-> A service account key grants full read/write to **every** collection in its project.
-> Pointing this tool at the project holding live assumption data would mean the only
-> thing protecting that data is this app's code being careful. Use a separate Firebase
-> project and there is no credential path to it at all.
->
-> As a second line of defence, `api/_lib/firebase.js` refuses to touch any collection
-> other than `pvWaves` and `pvEmailLog`.
+1. **`/admin`** → passcode → *Start a new wave*
+2. Name it (`Wave 6`), set the **due date** (verified by) and **transition date** (moves
+   to CRMiQ), choose the file, *Import wave*
+3. Send out the link from *Link to send out* — the same link every wave
+4. Watch **Still outstanding**, and *Download Excel report* whenever you need the data
 
----
+Waves order by the number in the name, so `Wave 6` sits above `Wave 5` for everyone.
 
-## 2. Deploy
+### Chasing people
 
-**a. Create the Firebase project**
+The admin page opens with **Still outstanding**: who has not finished, how many
+properties are left, and which ones. Two buttons:
 
-1. <https://console.firebase.google.com> → *Add project* → name it e.g. `rpm-property-verification`.
-2. *Build → Firestore Database → Create database* → **Production mode** → pick a region.
-3. *Project settings → Service accounts → Generate new private key*. A `.json` file downloads.
-   Keep it out of the repo — `.gitignore` already excludes `*firebase-adminsdk*.json`.
+- **Copy names** — a semicolon-separated list for an email To: line
+- **Copy names + properties** — the full breakdown, ready to paste into Teams or Outlook
 
-You do not need to write any security rules. The app only talks to Firestore from the
-server using the service account, so the default locked-down rules are correct.
+### Corrections after confirmation
 
-**b. Push the code**
+Confirming locks a property and the reviewer is told to message you. To action it:
+`/admin` → **Reopen a confirmed property** → pick it → *Unlock*. It returns to their list
+as unconfirmed.
 
-```bash
-git init && git add . && git commit -m "Property detail verification tool"
-```
+### The Excel report
 
-Then publish it to GitHub (GitHub Desktop → *Add existing repository* → *Publish*).
+*Download Excel report* gives three sheets:
 
-**c. Create the Vercel project**
-
-Import the repo at <https://vercel.com/new>. No build settings to change — it is static
-HTML plus serverless functions.
-
-**d. Set the environment variables**
-
-In Vercel → *Settings → Environment Variables*, add each of these (see `.env.example`):
-
-| Variable | Value |
-|---|---|
-| `FIREBASE_PROJECT_ID` | `project_id` from the service account JSON |
-| `FIREBASE_CLIENT_EMAIL` | `client_email` from the JSON |
-| `FIREBASE_PRIVATE_KEY` | `private_key` from the JSON, **including** the `-----BEGIN/END-----` lines and the `\n` escapes, wrapped in double quotes |
-| `ADMIN_KEY` | A long passphrase you invent. This is the admin page passcode. |
-| `NOTIFY_EMAIL` | Where portfolio-complete alerts go (your address) |
-| `PUBLIC_BASE_URL` | Your deployed URL, e.g. `https://property-verification.vercel.app` |
-| `CRON_SECRET` | Another long random string; protects the reminder endpoint |
-| `EMAIL_PROVIDER` | `none` for now |
-
-Redeploy after adding them.
-
-**e. Check it**
-
-Open `/admin`, enter your `ADMIN_KEY`, and import a spreadsheet.
+1. **The wave** — your original columns in their original order, plus Status, Missing
+   Fields, Confirmed By, Confirmed At, Was Corrected
+2. **Progress by Regional** — counts, complete yes/no, what is still outstanding
+3. **Change Log** — every edit: property, who, when, field, old value, new value
 
 ---
 
-## 3. Running a wave
+## The import file
 
-1. **Import.** `/admin` → *Start a new wave* → name it (`Wave 6`), set the **due date**
-   (when you need it verified) and the **transition date** (when the properties move to
-   CRMiQ), choose the file, *Import wave*.
-2. **Add email addresses** in the Regionals table, if you want invites and reminders.
-   The link works fine without them.
-3. **Send the link.** The same link every wave — copy it from *Link to send out*.
-4. **Watch progress** on the admin dashboard, or *Download Excel report* at any time.
-
-Waves are ordered by the number in the name, so `Wave 6` sits above `Wave 5` for
-everyone. Earlier waves stay visible and unchanged underneath.
-
-### The import file
-
-Header names are matched loosely (case and punctuation are ignored), so your existing
-sheet works as-is. A dropdown left as `-` is treated as blank, which means the Regional
-has to answer it rather than confirm a dash.
+Headers are matched loosely (case and punctuation ignored), so the existing sheet works
+as-is. A dropdown left as `-` counts as blank, so the Regional must answer it rather than
+confirm a dash.
 
 **Recognised columns** — Property Name · RM Name · Property Code · Revenue Management ·
 Does the property use HappyCo? · Phone Landline Number · Do residents call maintenance
@@ -110,97 +70,97 @@ directly for emergencies? · If yes what is the number · Answering Service Prov
 Directions to Forward · Directions to remove the forwarding · Office Hours · Completed by ·
 CM/SM Name
 
-**Optional extras**
+**Optional** — `Transition Date` per property. Anything without one inherits the wave's.
 
-- `Transition Date` — per property. Anything without one inherits the wave's date.
-- `RM Email` — enables invites and reminders for that Regional.
+**Office hours** can arrive either way, and both load into the day/time picker so the
+Regional verifies real hours rather than a sentence:
 
-**Office hours** can arrive in either shape, and both load straight into the day/time
-picker so the Regional verifies real hours rather than a sentence:
-
-- a single `Office Hours` cell — `Mon-Fri 9am-6pm, Sat 10-4, Sun Closed`
-  (also understands `Weekdays`, `Daily`, `Monday-Friday`, 24-hour times, and `8:30-5:30`)
+- one `Office Hours` cell — `Mon-Fri 9am-6pm, Sat 10-4, Sun Closed`
+  (also understands `Weekdays`, `Daily`, `Monday-Friday`, 24-hour times, `8:30-5:30`)
 - or per-day columns — `Monday Hours` … `Sunday Hours` (`9:00 AM-6:00 PM` or `Closed`),
-  or `Monday Open` + `Monday Close` pairs.
+  or `Monday Open` + `Monday Close` pairs
 
-Any day not mentioned is recorded as **Closed**. That guess is always shown back to the
-Regional to confirm, so it cannot slip through unseen. The import result tells you how
-many rows loaded into the picker and how many stayed as plain text.
+Any day not mentioned is recorded as **Closed** — always shown back to the Regional to
+confirm, so a wrong reading cannot slip through. The import result reports how many rows
+loaded into the picker and how many stayed as plain text.
 
-The HappyCo rule from your workbook is built in: when HappyCo is *Yes*, Answering Service
+The HappyCo rule from the workbook is built in: when HappyCo is *Yes*, Answering Service
 Provider becomes `HappyCo` and Directions to Forward becomes `Auto Forwards`, both locked.
 
----
+### Re-importing a wave
 
-## 4. Email
+Property records are keyed on property code + name, so re-importing never creates
+duplicates.
 
-Everything works with `EMAIL_PROVIDER=none` — messages are written to the `pvEmailLog`
-collection and shown under *Recent email activity*, so you can confirm the logic is right
-before anything is delivered. To switch delivery on:
+| | Result |
+|---|---|
+| Same wave name, *replace* unticked | Blocked. Nothing changes. |
+| Same wave name, *replace* ticked | Wave is **wiped and rebuilt** — all confirmations lost |
+| Different name | New wave alongside the old one |
 
-**Resend** — sign up, verify a sending domain, then set `EMAIL_PROVIDER=resend`,
-`RESEND_API_KEY=...`, `EMAIL_FROM="RPM Property Verification <verification@yourdomain.com>"`.
-
-**SendGrid** — set `EMAIL_PROVIDER=sendgrid` and `SENDGRID_API_KEY=...` instead.
-
-Three kinds of message are sent:
-
-| When | To | Trigger |
-|---|---|---|
-| Invite | Regional | You click *Send invite email to everyone unfinished* |
-| Reminder | Regional | Daily cron, if their portfolio is unfinished and they have not been reminded within the interval |
-| Portfolio complete | You (`NOTIFY_EMAIL`) | Automatically, the first time a Regional finishes everything |
-
-Reminders only go out for waves where *Send automatic reminders* is ticked and
-*Remind every N days* is above zero. The cron runs daily at 13:00 UTC (~8am Central);
-change the schedule in `vercel.json`.
+There is no merge mode yet. Re-importing a wave to add data throws away confirmations
+already collected.
 
 ---
 
-## 5. Corrections after confirmation
+## Deployment
 
-Confirming locks a property, for the reviewer and on the server — a locked property
-rejects further edits even if someone crafts the request by hand. The reviewer sees
-*"Reach out to Carlie Ahern on Teams to make a correction."*
+Hosted on Vercel, backed by its own Firebase project (`wave-verification`).
 
-To action one: `/admin` → *Reopen a confirmed property* → pick it → *Unlock*. It returns
-to the Regional's list as unconfirmed, and finishing again re-alerts you.
+> The Firebase project is deliberately separate from `rpm-site-level-assumptions`. A
+> service account key grants full access to every collection in its project, so this app
+> has no credential path to live assumption data. `api/_lib/firebase.js` also keeps an
+> allowlist and refuses any collection outside `pvWaves`.
+
+### Environment variables
+
+| Variable | Notes |
+|---|---|
+| `FIREBASE_PROJECT_ID` | from the service account JSON |
+| `FIREBASE_CLIENT_EMAIL` | from the JSON |
+| `FIREBASE_PRIVATE_KEY` | the whole `private_key` value, `\n` sequences intact |
+| `ADMIN_KEY` | the `/admin` passcode |
+| `PUBLIC_BASE_URL` | the deployed URL, used for the links shown in admin |
+
+Paste them using Vercel's bulk *Import .env* box rather than one at a time — the private
+key is a long single line and is easy to mangle by hand. **Environment variables only take
+effect after a redeploy.**
+
+### Changing the key
+
+Generate a new key in Firebase → *Project settings → Service accounts*, then replace only
+`FIREBASE_PRIVATE_KEY` and redeploy. The service account itself does not change.
+
+`api/_lib/firebase.js` accepts the key with literal `\n`, with real newlines, with or
+without surrounding quotes, and validates the PEM shape up front — a malformed key reports
+itself instead of failing as an opaque `16 UNAUTHENTICATED`.
 
 ---
 
-## 6. The Excel report
-
-*Download Excel report* produces three sheets:
-
-1. **The wave** — your original columns in their original order, plus Status, Missing
-   Fields, Confirmed By, Confirmed At and Was Corrected.
-2. **Progress by Regional** — counts, complete yes/no, and what is still outstanding.
-3. **Change Log** — every edit: property, who, when, which field, old value, new value.
-
----
-
-## 7. Layout
+## Layout
 
 ```
-index.html          the reviewer page (pick your name, work through your properties)
-admin.html          import, dashboard, email addresses, export, reminders, unlock
-vercel.json         daily reminder cron
+index.html          reviewer page: pick your name, work through your properties
+admin.html          import, outstanding list, settings, export, reopen, delete
+vercel.json         clean URLs, so /admin works as well as /admin.html
 api/
-  schema.js         serves the field definitions to the browser
-  waves.js          wave list; merged Regionals across open waves
-  portfolio.js      one Regional's properties, grouped by wave
+  schema.js         serves field definitions to the browser
+  waves.js          wave list; Regionals merged across open waves
+  portfolio.js      one Regional's properties, grouped by wave, newest first
   save.js           save / confirm, and the server-side lock
   import.js         creates a wave from a spreadsheet
   export.js         builds the Excel report
-  remind.js         cron + manual reminders
-  admin.js          dashboard, settings, invites, unlock, delete
+  admin.js          dashboard, settings, reopen, delete
   _lib/
     schema.js       the 14 columns, completeness rules, office-hours parsing
-    firebase.js     Firestore access, restricted to this app's own collections
-    email.js        provider adapter (resend / sendgrid / none) + templates
-    status.js       per-Regional roll-up and the completion alert
-    util.js         small shared helpers
+    firebase.js     Firestore access, restricted to this app's own collection
+    status.js       per-Regional roll-up
+    util.js         shared helpers
 ```
 
-Data lives under `pvWaves/{waveId}` with `properties` and `regionals` subcollections,
-plus `pvEmailLog` for the email trail.
+Data lives under `pvWaves/{waveId}` with `properties` and `regionals` subcollections.
+
+### Known gaps
+
+- No merge mode on re-import (see above)
+- `ADMIN_KEY` is currently `admin`, which is guessable; `/admin` can delete a wave
