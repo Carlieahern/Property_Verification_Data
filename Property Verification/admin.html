@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin | Property Detail Verification</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#0f2f4f; --navy-2:#164a78; --blue:#1a6dbf; --blue-soft:#e8f1fa;
+    --ink:#1f2430; --muted:#5b6577; --line:#dfe4ec; --bg:#f4f6f9; --card:#fff;
+    --green:#127a51; --green-soft:#e4f5ee; --amber:#8a5a00; --amber-soft:#fdf3e0;
+    --red:#b3261e; --red-soft:#fdecea; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 16px 80px}
+  header{background:var(--navy);color:#fff;padding:16px 0;margin-bottom:20px}
+  header .wrap{padding-bottom:0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  h1{font-size:17px;margin:0;font-weight:600}
+  header a{color:#cfe1f2;font-size:13px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:18px}
+  .panel h2{font-size:15px;margin:0 0 4px;font-weight:600}
+  .panel p.hint{margin:0 0 14px;color:var(--muted);font-size:13.5px}
+  label.fl{display:block;font-weight:600;font-size:13.5px;margin-bottom:5px}
+  select,input[type=text],input[type=password],input[type=email],input[type=number],input[type=date],input[type=file]{
+    width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+  input:focus,select:focus{outline:2px solid var(--blue);outline-offset:-1px}
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:8px;
+    padding:9px 15px;font:inherit;font-weight:600;cursor:pointer;background:var(--blue);color:#fff}
+  .btn:hover{background:var(--navy-2)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:#fff;border-color:var(--line);color:var(--ink)}
+  .btn.ghost:hover{background:#f2f5f9}
+  .btn.danger{background:var(--red)} .btn.danger:hover{background:#8f1e17}
+  .btn.sm{padding:6px 11px;font-size:13px}
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:760px){ .g3,.g2{grid-template-columns:1fr} }
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:#fafbfd;position:sticky;top:0}
+  tr:hover td{background:#fafbfd}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tbl-scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .bar{width:96px;height:7px;background:#e6eaf0;border-radius:99px;overflow:hidden;display:inline-block;vertical-align:middle}
+  .bar>span{display:block;height:100%;background:var(--green)}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.3px}
+  .pill.yes{background:var(--green-soft);color:var(--green)}
+  .pill.no{background:var(--amber-soft);color:var(--amber)}
+  .banner{border-radius:8px;padding:11px 13px;font-size:13.5px;margin-bottom:14px}
+  .banner.good{background:var(--green-soft);color:var(--green);border:1px solid #bfe4d4}
+  .banner.warn{background:var(--amber-soft);color:var(--amber);border:1px solid #f0dcb4}
+  .banner.err{background:var(--red-soft);color:var(--red);border:1px solid #f3c9c5}
+  .banner.info{background:var(--blue-soft);color:var(--navy-2);border:1px solid #c9dff2}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;background:var(--ink);color:#fff;
+    padding:11px 18px;border-radius:8px;font-size:14px;box-shadow:0 6px 22px rgba(0,0,0,.2);z-index:60}
+  .hidden{display:none !important}
+  .row{margin-bottom:14px}
+  .inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .stat{background:#fafbfd;border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+  .stat b{display:block;font-size:24px;font-weight:700;line-height:1.2}
+  .stat span{font-size:12.5px;color:var(--muted)}
+  code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:12.5px}
+  details summary{cursor:pointer;font-weight:600;font-size:14px;padding:6px 0}
+  .mini{font-size:12.5px;color:var(--muted)}
+  input.err{border-color:#e8a9a4;background:#fffafa}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>Property Verification — Admin</h1>
+    <div><a href="/">Open the reviewer view →</a></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Passcode gate -->
+  <div class="panel" id="gate">
+    <h2>Admin passcode</h2>
+    <p class="hint">This is the <code>ADMIN_KEY</code> you set in Vercel. It's remembered on this device only.</p>
+    <div class="inline">
+      <input type="password" id="keyInput" placeholder="Passcode" style="max-width:320px">
+      <button class="btn" id="keyBtn">Unlock</button>
+    </div>
+    <div id="gateMsg" class="mini" style="margin-top:8px"></div>
+  </div>
+
+  <div id="main" class="hidden">
+
+    <!-- Wave picker + import -->
+    <div class="panel">
+      <div class="inline" style="justify-content:space-between">
+        <div style="flex:1;min-width:240px">
+          <label class="fl" for="waveSel">Wave</label>
+          <select id="waveSel"></select>
+        </div>
+        <div style="align-self:flex-end" class="inline">
+          <button class="btn ghost" id="refreshBtn">Refresh</button>
+          <button class="btn" id="exportBtn">Download Excel report</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dash"></div>
+
+    <!-- Import -->
+    <div class="panel">
+      <h2>Start a new wave</h2>
+      <p class="hint">Upload the same spreadsheet layout you use today. Headers are matched by name, and any dropdown left as <code>-</code> is treated as blank so the Regional has to answer it.</p>
+      <div class="grid g2">
+        <div class="row">
+          <label class="fl" for="waveName">Wave name</label>
+          <input type="text" id="waveName" placeholder="Wave 6">
+          <div class="mini">The number here sets the order — Wave 6 shows above Wave 5.</div>
+        </div>
+        <div class="row">
+          <label class="fl" for="file">Spreadsheet (.xlsx or .csv)</label>
+          <input type="file" id="file" accept=".xlsx,.xlsm,.csv">
+        </div>
+        <div class="row">
+          <label class="fl" for="dueDate">Due date — verified by (optional)</label>
+          <input type="date" id="dueDate">
+        </div>
+        <div class="row">
+          <label class="fl" for="transitionDate">Transition date — moves to CRMiQ (optional)</label>
+          <input type="date" id="transitionDate">
+          <div class="mini">Only used where a row has no Transition Date of its own.</div>
+        </div>
+      </div>
+      <details style="margin-bottom:12px">
+        <summary>Which columns can I include?</summary>
+        <p class="mini" style="margin:8px 0 4px"><strong>Recognised as-is:</strong> Property Name, RM Name, Property Code, Revenue Management,
+          Does the property use HappyCo?, Phone Landline Number, Do residents call maintenance directly for emergencies?,
+          If yes what is the number, Answering Service Provider, Directions to Forward,
+          Directions to remove the forwarding, Office Hours, Completed by, CM/SM Name.</p>
+        <p class="mini" style="margin:4px 0"><strong>Optional extras:</strong> <code>Transition Date</code> (per property),
+          and <code>RM Email</code> so reminders can be sent.</p>
+        <p class="mini" style="margin:4px 0"><strong>Office hours</strong> can come in either shape, and both load straight into the
+          day/time picker for the Regional to verify:</p>
+        <p class="mini" style="margin:4px 0 0">
+          &bull; one <code>Office Hours</code> cell such as <code>Mon-Fri 9am-6pm, Sat 10-4, Sun Closed</code>, or<br>
+          &bull; per-day columns: <code>Monday Hours</code> … <code>Sunday Hours</code> (values like <code>9:00 AM-6:00 PM</code> or <code>Closed</code>),
+          or <code>Monday Open</code> + <code>Monday Close</code> pairs.<br>
+          Any day you do not mention is recorded as Closed, and the Regional still has to confirm it on screen.</p>
+      </details>
+      <div id="preview" class="hidden"></div>
+      <div class="inline" style="margin-top:6px">
+        <button class="btn" id="importBtn" disabled>Import wave</button>
+        <label class="mini"><input type="checkbox" id="overwrite" style="width:auto;margin-right:5px">Replace the wave if the name already exists</label>
+      </div>
+      <div id="importMsg" style="margin-top:12px"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var adminKey = '';
+var state = { waves:[], waveId:null, dash:null, parsedRows:null };
+
+var $ = function(s){ return document.querySelector(s); };
+function el(t,a,k){
+  var n=document.createElement(t);
+  if(a) Object.keys(a).forEach(function(key){
+    if(key==='class') n.className=a[key];
+    else if(key==='text') n.textContent=a[key];
+    else if(key==='html') n.innerHTML=a[key];
+    else if(key.slice(0,2)==='on') n.addEventListener(key.slice(2),a[key]);
+    else if(a[key]!==null&&a[key]!==undefined) n.setAttribute(key,a[key]);
+  });
+  (k||[]).forEach(function(c){ if(c) n.appendChild(c); });
+  return n;
+}
+function toast(m){ var t=el('div',{class:'toast',text:m}); document.body.appendChild(t); setTimeout(function(){t.remove();},2800); }
+function api(path, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({ 'x-admin-key': adminKey }, opts.headers || {});
+  return fetch(path, opts).then(function(r){
+    return r.json().catch(function(){return {};}).then(function(b){
+      if(!r.ok) throw new Error(b.error || ('Request failed ('+r.status+')'));
+      return b;
+    });
+  });
+}
+function fmtDate(iso){ return iso ? new Date(iso).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : '—'; }
+
+// ---------- gate ----------
+try { adminKey = localStorage.getItem('pv_admin_key') || ''; } catch(e){}
+$('#keyBtn').addEventListener('click', unlock);
+$('#keyInput').addEventListener('keydown', function(e){ if(e.key==='Enter') unlock(); });
+
+function unlock(){
+  var v = $('#keyInput').value.trim();
+  if(!v) return;
+  adminKey = v;
+  loadWaves().then(function(){
+    try { localStorage.setItem('pv_admin_key', adminKey); } catch(e){}
+    $('#gate').classList.add('hidden');
+    $('#main').classList.remove('hidden');
+  }).catch(function(e){
+    $('#gateMsg').textContent = e.message;
+    $('#gateMsg').style.color = '#b3261e';
+  });
+}
+if(adminKey){
+  loadWaves().then(function(){
+    $('#gate').classList.add('hidden');
+    $('#main').classList.remove('hidden');
+  }).catch(function(){ /* stale key: show the gate */ });
+}
+
+// ---------- waves ----------
+function loadWaves(){
+  return fetch('/api/waves').then(function(r){ return r.json(); }).then(function(d){
+    state.waves = d.waves || [];
+    var sel = $('#waveSel');
+    sel.innerHTML = '';
+    if(!state.waves.length){
+      sel.appendChild(el('option',{value:'',text:'No waves yet — import one below'}));
+      $('#dash').innerHTML = '';
+      return;
+    }
+    state.waves.forEach(function(w){
+      sel.appendChild(el('option',{ value:w.id,
+        text: w.name + ' • ' + w.propertyCount + ' properties • ' + w.regionalCount + ' regionals' + (w.archived?' (archived)':'') }));
+    });
+    if(!state.waveId || !state.waves.some(function(w){return w.id===state.waveId;})) state.waveId = state.waves[0].id;
+    sel.value = state.waveId;
+    sel.onchange = function(){ state.waveId = sel.value; loadDash(); };
+    return loadDash();
+  });
+}
+
+function loadDash(){
+  if(!state.waveId) return Promise.resolve();
+  return api('/api/admin?action=dashboard&wave='+encodeURIComponent(state.waveId)).then(function(d){
+    state.dash = d;
+    renderDash();
+  }).catch(function(e){ toast(e.message); throw e; });
+}
+
+$('#refreshBtn').addEventListener('click', function(){
+  api('/api/admin', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'recompute', waveId: state.waveId }) })
+    .then(loadDash).then(function(){ toast('Refreshed'); }).catch(function(e){ toast(e.message); });
+});
+
+$('#exportBtn').addEventListener('click', function(ev){
+  if(!state.waveId) return toast('Pick a wave first.');
+  var b = ev.currentTarget, label = b.textContent;
+  b.disabled = true; b.textContent = 'Building…';
+  // Fetched with the passcode in a header rather than the URL, then saved from a blob.
+  fetch('/api/export?wave='+encodeURIComponent(state.waveId), { headers:{ 'x-admin-key': adminKey } })
+    .then(function(r){
+      if(!r.ok) return r.json().catch(function(){return{};}).then(function(j){
+        throw new Error(j.error || ('Export failed ('+r.status+')'));
+      });
+      var name = 'export.xlsx';
+      var cd = r.headers.get('Content-Disposition') || '';
+      var m = cd.match(/filename="([^"]+)"/);
+      if(m) name = m[1];
+      return r.blob().then(function(blob){
+        var url = URL.createObjectURL(blob);
+        var a = el('a', { href:url, download:name });
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        toast('Downloaded ' + name);
+      });
+    })
+    .catch(function(e){ toast(e.message); })
+    .then(function(){ b.disabled = false; b.textContent = label; });
+});
+
+// ---------- dashboard ----------
+function renderDash(){
+  var d = state.dash, wave = d.wave, regs = d.regionals || [];
+  var root = $('#dash');
+  root.innerHTML = '';
+
+  var totalProps = regs.reduce(function(s,r){ return s+(r.total||0); },0);
+  var doneProps  = regs.reduce(function(s,r){ return s+(r.verified||0); },0);
+  var doneRegs   = regs.filter(function(r){ return r.complete; }).length;
+  var noEmail    = regs.filter(function(r){ return !r.email; }).length;
+
+  // Stats
+  var stats = el('div',{class:'panel'});
+  stats.appendChild(el('h2',{text: wave.name + (wave.archived ? ' (archived)' : '')}));
+  var g = el('div',{class:'grid g3',style:'margin-top:12px'});
+  [[doneProps+' / '+totalProps,'Properties verified'],
+   [doneRegs+' / '+regs.length,'Portfolios complete'],
+   [totalProps-doneProps,'Properties outstanding']].forEach(function(p){
+    g.appendChild(el('div',{class:'stat'},[el('b',{text:String(p[0])}),el('span',{text:p[1]})]));
+  });
+  stats.appendChild(g);
+
+  // One link for everyone. People pick their own name and see every open wave,
+  // newest on top, so nobody has to know which wave they are in.
+  var linkBase = (d.baseUrl || location.origin) + '/';
+  var linkRow = el('div',{class:'inline',style:'margin-top:16px'});
+  var linkIn = el('input',{type:'text',readonly:'readonly',style:'max-width:420px;background:#f7f9fc'});
+  linkIn.value = linkBase;
+  linkRow.appendChild(linkIn);
+  linkRow.appendChild(el('button',{class:'btn ghost sm',text:'Copy link for the teams',onclick:function(){
+    linkIn.select();
+    if(navigator.clipboard) navigator.clipboard.writeText(linkIn.value).then(function(){toast('Link copied');});
+    else { document.execCommand('copy'); toast('Link copied'); }
+  }}));
+  stats.appendChild(el('label',{class:'fl',style:'margin-top:16px',text:'Link to send out'}));
+  stats.appendChild(linkRow);
+  stats.appendChild(el('div',{class:'mini',style:'margin-top:6px',
+    text:'Send this same link every wave. Each person picks their name and sees all their open waves, newest first.'}));
+
+  if(d.emailProvider === 'none'){
+    stats.appendChild(el('div',{class:'banner warn',style:'margin-top:14px',
+      html:'<strong>Email is not connected yet.</strong> Completion alerts and reminders are being written to the log below but not delivered. Set <code>EMAIL_PROVIDER</code> and an API key in Vercel to switch them on.'}));
+  }
+  if(noEmail){
+    stats.appendChild(el('div',{class:'banner info',style:'margin-top:10px',
+      text: noEmail + ' regional' + (noEmail===1?' has':'s have') + ' no email address on file — they can still use a shared link, but cannot be emailed or reminded.'}));
+  }
+  root.appendChild(stats);
+
+  // Settings
+  var setP = el('div',{class:'panel'});
+  setP.appendChild(el('h2',{text:'Wave settings'}));
+  setP.appendChild(el('p',{class:'hint',text:'Reminders are checked once a day. A regional is emailed only if their portfolio is unfinished and they have not been reminded within the interval.'}));
+  var sg = el('div',{class:'grid g2'});
+
+  var dueIn = el('input',{type:'date'}); dueIn.value = wave.dueDate || '';
+  sg.appendChild(el('div',{},[el('label',{class:'fl',text:'Due date (verified by)'}),dueIn,
+    el('div',{class:'mini',text:'When you need this information confirmed.'})]));
+
+  var transIn = el('input',{type:'date'}); transIn.value = wave.transitionDate || '';
+  sg.appendChild(el('div',{},[el('label',{class:'fl',text:'Transition date (moves to CRMiQ)'}),transIn,
+    el('div',{class:'mini',text:'Used for any property whose row has no date of its own.'})]));
+
+  var remIn = el('input',{type:'number',min:'0',step:'1'}); remIn.value = wave.reminderDays || 0;
+  sg.appendChild(el('div',{},[el('label',{class:'fl',text:'Remind every N days'}),remIn]));
+
+  var onWrap = el('div',{},[el('label',{class:'fl',text:'Reminders'})]);
+  var onLbl = el('label',{class:'mini',style:'display:flex;align-items:center;gap:7px;padding-top:8px'});
+  var onIn = el('input',{type:'checkbox',style:'width:auto'}); onIn.checked = !!wave.remindersOn;
+  onLbl.appendChild(onIn); onLbl.appendChild(document.createTextNode('Send automatic reminders'));
+  onWrap.appendChild(onLbl);
+  sg.appendChild(onWrap);
+  setP.appendChild(sg);
+
+  var setActions = el('div',{class:'inline',style:'margin-top:14px'});
+  setActions.appendChild(el('button',{class:'btn',text:'Save settings',onclick:function(ev){
+    var b=ev.currentTarget; b.disabled=true;
+    api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'settings',waveId:state.waveId,dueDate:dueIn.value||null,
+        transitionDate:transIn.value||null,
+        reminderDays:Number(remIn.value)||0,remindersOn:onIn.checked})})
+      .then(loadDash).then(function(){toast('Settings saved');})
+      .catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
+  }}));
+  setActions.appendChild(el('button',{class:'btn ghost',text:'Send invite email to everyone unfinished',onclick:function(ev){
+    if(!confirm('Send the invite email to every regional with an address on file who has not finished?')) return;
+    var b=ev.currentTarget; b.disabled=true;
+    api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'invite',waveId:state.waveId})})
+      .then(function(r){
+        var sent=(r.results||[]).filter(function(x){return x.sent==='sent';}).length;
+        var logged=(r.results||[]).filter(function(x){return x.sent==='logged_only';}).length;
+        toast(sent?('Sent '+sent+' invites'):(logged?('Logged '+logged+' invites (email not connected)'):'Nothing to send'));
+      }).then(loadDash).catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
+  }}));
+  setActions.appendChild(el('button',{class:'btn ghost',text:'Run reminders now',onclick:function(ev){
+    if(!confirm('Send a reminder now to every unfinished regional with an address on file?')) return;
+    var b=ev.currentTarget; b.disabled=true;
+    api('/api/remind',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({waveId:state.waveId,force:true})})
+      .then(function(r){
+        var sent=(r.results||[]).filter(function(x){return x.sent;}).length;
+        toast(sent?('Processed '+sent+' reminders'):'Nobody was due a reminder');
+      }).then(loadDash).catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
+  }}));
+  setP.appendChild(setActions);
+  root.appendChild(setP);
+
+  // Regionals table
+  var tp = el('div',{class:'panel'});
+  tp.appendChild(el('h2',{text:'Regionals'}));
+  tp.appendChild(el('p',{class:'hint',text:'Add an email address to enable invites and reminders for that person. Their link works with or without one.'}));
+
+  var scroll = el('div',{class:'tbl-scroll'});
+  var tbl = el('table');
+  var thead = el('thead');
+  thead.appendChild(el('tr',{},['Regional','Progress','Done','Email','Last reminded','Link'].map(function(h){
+    return el('th',{text:h});
+  })));
+  tbl.appendChild(thead);
+  var tbody = el('tbody');
+  var emailInputs = {};
+
+  regs.forEach(function(r){
+    var pct = r.total ? Math.round((r.verified||0)/r.total*100) : 0;
+    var tr = el('tr');
+    tr.appendChild(el('td',{},[
+      el('div',{text:r.rmName,style:'font-weight:600'}),
+      el('div',{class:'mini',text:(r.total||0)+(r.total===1?' property':' properties')})
+    ]));
+    tr.appendChild(el('td',{},[
+      el('span',{class:'bar'},[el('span',{style:'width:'+pct+'%'})]),
+      el('span',{class:'mini',style:'margin-left:8px',text:pct+'%'})
+    ]));
+    tr.appendChild(el('td',{class:'num'},[
+      el('span',{text:(r.verified||0)+'/'+(r.total||0)}),
+      document.createTextNode(' '),
+      el('span',{class:'pill '+(r.complete?'yes':'no'),text:r.complete?'Complete':'Open'})
+    ]));
+
+    var ei = el('input',{type:'email',placeholder:'name@rpmliving.com'});
+    ei.value = r.email || '';
+    emailInputs[r.rmSlug] = ei;
+    tr.appendChild(el('td',{style:'min-width:220px'},[ei]));
+
+    tr.appendChild(el('td',{class:'mini',text: r.lastReminderAt ? fmtDate(r.lastReminderAt) : '—'}));
+
+    var link = (d.baseUrl || location.origin) + '/?wave='+encodeURIComponent(state.waveId)+'&rm='+encodeURIComponent(r.rmSlug);
+    tr.appendChild(el('td',{},[
+      el('button',{class:'btn ghost sm',text:'Copy',onclick:function(){
+        navigator.clipboard ? navigator.clipboard.writeText(link).then(function(){toast('Link copied');})
+                            : window.prompt('Copy this link:', link);
+      }})
+    ]));
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  scroll.appendChild(tbl);
+  tp.appendChild(scroll);
+
+  tp.appendChild(el('div',{class:'inline',style:'margin-top:14px'},[
+    el('button',{class:'btn',text:'Save email addresses',onclick:function(ev){
+      var b=ev.currentTarget; b.disabled=true;
+      var emails={}, bad=false;
+      Object.keys(emailInputs).forEach(function(slug){
+        var v=emailInputs[slug].value.trim();
+        emailInputs[slug].classList.remove('err');
+        if(v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ emailInputs[slug].classList.add('err'); bad=true; }
+        emails[slug]=v;
+      });
+      if(bad){ b.disabled=false; return toast('One or more addresses look wrong.'); }
+      api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'setEmails',waveId:state.waveId,emails:emails})})
+        .then(loadDash).then(function(){toast('Email addresses saved');})
+        .catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
+    }})
+  ]));
+  root.appendChild(tp);
+
+  // Reopen a locked property. Reviewers are told to message Carlie for a
+  // correction; this is where that request gets actioned.
+  var up = el('div',{class:'panel'});
+  up.appendChild(el('h2',{text:'Reopen a confirmed property'}));
+  up.appendChild(el('p',{class:'hint',
+    text:'Once someone confirms a property it locks, and they are told to message you. Unlock it here and they can edit and re-confirm it.'}));
+  var uSel = el('select');
+  uSel.appendChild(el('option',{value:'',text:'Loading confirmed properties…'}));
+  var uRow = el('div',{class:'inline'},[
+    el('div',{style:'flex:1;min-width:260px'},[uSel]),
+    el('button',{class:'btn ghost',text:'Unlock',onclick:function(ev){
+      if(!uSel.value) return toast('Pick a property first.');
+      var label = uSel.options[uSel.selectedIndex].textContent;
+      if(!confirm('Unlock "'+label+'" so it can be edited and confirmed again?')) return;
+      var b=ev.currentTarget; b.disabled=true;
+      api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'unlockProperty',waveId:state.waveId,propertyId:uSel.value})})
+        .then(function(r){ toast('Reopened '+r.reopened); return loadDash(); })
+        .catch(function(e){ toast(e.message); })
+        .then(function(){ b.disabled=false; });
+    }})
+  ]);
+  up.appendChild(uRow);
+  root.appendChild(up);
+
+  api('/api/admin?action=properties&wave='+encodeURIComponent(state.waveId)).then(function(r){
+    var locked = (r.properties||[]).filter(function(p){ return p.verified; });
+    uSel.innerHTML = '';
+    if(!locked.length){
+      uSel.appendChild(el('option',{value:'',text:'No confirmed properties yet'}));
+      return;
+    }
+    uSel.appendChild(el('option',{value:'',text:'Select a property…'}));
+    locked.forEach(function(p){
+      uSel.appendChild(el('option',{ value:p.id,
+        text: p.rmName + ' — ' + p.propertyName + ' (confirmed by ' + (p.verifiedBy||'?') + ')' }));
+    });
+  }).catch(function(){
+    uSel.innerHTML=''; uSel.appendChild(el('option',{value:'',text:'Could not load properties'}));
+  });
+
+  // Email log
+  var lp = el('div',{class:'panel'});
+  var det = el('details');
+  det.appendChild(el('summary',{text:'Recent email activity ('+(d.recentEmails||[]).length+')'}));
+  if(!(d.recentEmails||[]).length){
+    det.appendChild(el('p',{class:'mini',text:'Nothing yet.'}));
+  } else {
+    var lt=el('table');
+    lt.appendChild(el('thead',{},[el('tr',{},['When','Type','To','Status'].map(function(h){return el('th',{text:h});}))]));
+    var lb=el('tbody');
+    d.recentEmails.forEach(function(m){
+      lb.appendChild(el('tr',{},[
+        el('td',{class:'mini',text:fmtDate(m.at)}),
+        el('td',{text:m.kind||''}),
+        el('td',{class:'mini',text:(m.to||[]).join(', ')}),
+        el('td',{},[el('span',{class:'pill '+(m.status==='sent'?'yes':'no'),
+          text: m.status==='logged_only' ? 'logged only' : (m.status||'')})])
+      ]));
+    });
+    lt.appendChild(lb);
+    det.appendChild(lt);
+  }
+  lp.appendChild(det);
+
+  var dz = el('details',{style:'margin-top:10px'});
+  dz.appendChild(el('summary',{text:'Danger zone'}));
+  var delName = el('input',{type:'text',placeholder:'Type the wave name to confirm',style:'max-width:320px;margin:8px 0'});
+  dz.appendChild(delName);
+  dz.appendChild(el('div',{},[el('button',{class:'btn danger',text:'Delete this wave and all its answers',onclick:function(ev){
+    if(!confirm('Permanently delete "'+wave.name+'" and every answer in it? This cannot be undone.')) return;
+    var b=ev.currentTarget; b.disabled=true;
+    api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'deleteWave',waveId:state.waveId,confirmName:delName.value})})
+      .then(function(){ state.waveId=null; toast('Wave deleted'); return loadWaves(); })
+      .catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
+  }})]));
+  lp.appendChild(dz);
+  root.appendChild(lp);
+}
+
+// ---------- import ----------
+$('#file').addEventListener('change', function(ev){
+  var f = ev.target.files && ev.target.files[0];
+  state.parsedRows = null;
+  $('#importBtn').disabled = true;
+  $('#preview').classList.add('hidden');
+  if(!f) return;
+
+  if(!$('#waveName').value.trim()){
+    var m = f.name.match(/wave\s*(\d+)/i);
+    if(m) $('#waveName').value = 'Wave ' + m[1];
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { defval:'', raw:false });
+      rows = rows.filter(function(r){
+        return Object.keys(r).some(function(k){ return String(r[k]).trim() !== ''; });
+      });
+      if(!rows.length) throw new Error('That sheet has no data rows.');
+      state.parsedRows = rows;
+      showPreview(rows, wb.SheetNames[0]);
+      $('#importBtn').disabled = false;
+    }catch(err){
+      $('#preview').classList.remove('hidden');
+      $('#preview').innerHTML = '';
+      $('#preview').appendChild(el('div',{class:'banner err',text:'Could not read that file: '+err.message}));
+    }
+  };
+  reader.readAsArrayBuffer(f);
+});
+
+function showPreview(rows, sheetName){
+  var box = $('#preview');
+  box.classList.remove('hidden');
+  box.innerHTML = '';
+  var headers = Object.keys(rows[0]);
+  var rmKey = headers.find(function(h){ return /rm name|regional|rvp/i.test(h); });
+  var rms = rmKey ? Object.keys(rows.reduce(function(a,r){ a[String(r[rmKey]).trim()]=1; return a; },{})).filter(Boolean) : [];
+
+  box.appendChild(el('div',{class:'banner good',
+    text:'Read '+rows.length+' rows from sheet "'+sheetName+'"'+(rms.length?(' across '+rms.length+' regionals'):'')+'.'}));
+  box.appendChild(el('div',{class:'mini',style:'margin-bottom:12px',
+    text:'Columns found: '+headers.join(' · ')}));
+}
+
+$('#importBtn').addEventListener('click', function(ev){
+  var name = $('#waveName').value.trim();
+  if(!name) return toast('Give the wave a name.');
+  if(!state.parsedRows) return toast('Choose a file first.');
+  var b = ev.currentTarget; b.disabled = true; b.textContent = 'Importing…';
+
+  api('/api/import',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ waveName:name, dueDate:$('#dueDate').value||null,
+      transitionDate:$('#transitionDate').value||null,
+      rows: state.parsedRows, overwrite: $('#overwrite').checked }) })
+    .then(function(r){
+      var box = $('#importMsg'); box.innerHTML = '';
+      box.appendChild(el('div',{class:'banner good',
+        text:'Imported '+r.imported+' properties across '+r.regionals+' regionals into "'+r.waveName+'".'
+             + (r.skipped ? ' Skipped '+r.skipped+' empty rows.' : '')}));
+      if(r.hoursParsed || r.hoursUnparsed){
+        box.appendChild(el('div',{class: r.hoursUnparsed ? 'banner warn' : 'banner info',
+          text: 'Office hours: '+(r.hoursParsed||0)+' loaded into the day/time picker'
+            + (r.hoursUnparsed ? ', '+r.hoursUnparsed+' kept as plain text because the format was not recognised (still verifiable as-is).' : '.')}));
+      }
+      if((r.unmatchedHeaders||[]).length){
+        box.appendChild(el('div',{class:'banner warn',
+          text:'These columns were not recognised and were ignored: '+r.unmatchedHeaders.join(' · ')}));
+      }
+      state.waveId = r.waveId;
+      $('#file').value=''; state.parsedRows=null; $('#preview').classList.add('hidden');
+      return loadWaves();
+    })
+    .catch(function(e){
+      $('#importMsg').innerHTML='';
+      $('#importMsg').appendChild(el('div',{class:'banner err',text:e.message}));
+    })
+    .then(function(){ b.disabled=false; b.textContent='Import wave'; });
+});
+
+})();
+</script>
+</body>
+</html>

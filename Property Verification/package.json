@@ -1,0 +1,10 @@
+{
+  "name": "property-verification",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RPM property detail verification by Regional portfolio, wave by wave.",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "firebase-admin": "^12.7.0"
+  }
+}

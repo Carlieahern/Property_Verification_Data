@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Property Detail Verification | RPM</title>
+<style>
+  :root{
+    --navy:#0f2f4f; --navy-2:#164a78; --blue:#1a6dbf; --blue-soft:#e8f1fa;
+    --ink:#1f2430; --muted:#5b6577; --line:#dfe4ec; --bg:#f4f6f9; --card:#fff;
+    --green:#127a51; --green-soft:#e4f5ee; --amber:#8a5a00; --amber-soft:#fdf3e0;
+    --red:#b3261e; --red-soft:#fdecea; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:0 16px 90px}
+
+  header{background:var(--navy);color:#fff;padding:18px 0;margin-bottom:22px}
+  header .wrap{padding-bottom:0;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.2px}
+  .sub{font-size:13px;opacity:.75;margin-top:2px}
+  .whoami{font-size:13px;opacity:.9}
+  .whoami button{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;
+    border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;margin-left:6px}
+  .whoami button:hover{background:rgba(255,255,255,.12)}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px;margin-bottom:18px}
+  .panel h2{font-size:15px;margin:0 0 4px;font-weight:600}
+  .panel p.hint{margin:0 0 14px;color:var(--muted);font-size:13.5px}
+
+  label.fl{display:block;font-weight:600;font-size:13.5px;margin-bottom:5px}
+  select,input[type=text],input[type=tel],input[type=time],textarea{
+    width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:8px;
+    font:inherit;color:var(--ink);background:#fff}
+  select:focus,input:focus,textarea:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
+  textarea{min-height:70px;resize:vertical}
+  select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'><path d='M3 5l4 4 4-4' fill='none' stroke='%235b6577' stroke-width='1.8' stroke-linecap='round'/></svg>");
+    background-repeat:no-repeat;background-position:right 11px center;padding-right:34px}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:8px;
+    padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;background:var(--blue);color:#fff}
+  .btn:hover{background:var(--navy-2)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:#fff;border-color:var(--line);color:var(--ink)}
+  .btn.ghost:hover:not([disabled]){background:#f2f5f9}
+  .btn.ok{background:var(--green)} .btn.ok:hover:not([disabled]){background:#0e5f3f}
+  .btn.sm{padding:6px 12px;font-size:13px}
+  .btn.tiny{padding:5px 11px;font-size:12.5px;font-weight:600}
+  .linkbtn{background:none;border:0;color:var(--blue);font:inherit;font-size:12.5px;
+    cursor:pointer;padding:0;text-decoration:underline}
+
+  .progress{height:9px;background:#e6eaf0;border-radius:99px;overflow:hidden;margin:10px 0 6px}
+  .progress > span{display:block;height:100%;background:var(--green);border-radius:99px;transition:width .35s ease}
+  .prog-label{font-size:13.5px;color:var(--muted)}
+
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;
+    letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
+  .pill.verified{background:var(--green-soft);color:var(--green)}
+  .pill.ready{background:var(--blue-soft);color:var(--navy-2)}
+  .pill.in_progress{background:var(--amber-soft);color:var(--amber)}
+  .pill.needs_input{background:var(--red-soft);color:var(--red)}
+
+  .wavehead{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;
+    margin:26px 0 10px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  .wavehead h3{margin:0;font-size:15px;font-weight:700}
+  .wavehead .dates{font-size:13px;color:var(--muted)}
+  .wavehead .dates b{color:var(--ink)}
+
+  .prop{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
+  .prop.done{border-color:#bfe4d4}
+  .prop-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:none;border:0;
+    width:100%;text-align:left;font:inherit;color:inherit}
+  .prop-head:hover{background:#f7f9fc}
+  .prop-title{flex:1;min-width:0}
+  .prop-title strong{display:block;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prop-title span{font-size:12.5px;color:var(--muted)}
+  .chev{color:var(--muted);transition:transform .2s;flex-shrink:0}
+  .prop.open .chev{transform:rotate(90deg)}
+  .prop-body{border-top:1px solid var(--line);padding:16px;display:none}
+  .prop.open .prop-body{display:block}
+
+  .banner{border-radius:8px;padding:11px 13px;font-size:13.5px;margin-bottom:14px}
+  .banner.warn{background:var(--amber-soft);color:var(--amber);border:1px solid #f0dcb4}
+  .banner.good{background:var(--green-soft);color:var(--green);border:1px solid #bfe4d4}
+  .banner.err{background:var(--red-soft);color:var(--red);border:1px solid #f3c9c5}
+  .banner.lock{background:#eef1f6;color:#3c4759;border:1px solid var(--line)}
+  .banner.info{background:var(--blue-soft);color:var(--navy-2);border:1px solid #c9dff2}
+
+  /* reference facts */
+  .facts{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:16px}
+  .fact{display:grid;grid-template-columns:minmax(0,200px) 1fr;gap:12px;padding:8px 12px;
+    border-bottom:1px solid var(--line);font-size:13.5px;background:#fafbfd}
+  .fact:last-child{border-bottom:0}
+  .fact dt{color:var(--muted);font-weight:600}
+  .fact dd{margin:0;overflow-wrap:anywhere}
+
+  /* one verifiable line */
+  .vrow{border:1px solid var(--line);border-radius:8px;padding:12px 13px;margin-bottom:10px;background:#fff}
+  .vrow.settled{border-color:#bfe4d4;background:#fbfefc}
+  .vrow.todo{border-color:#e8d3a8;background:#fffdf8}
+  .vrow.blank{border-color:#e8a9a4;background:#fffafa}
+  .vlabel{font-weight:600;font-size:13.5px;margin-bottom:7px;display:flex;gap:9px;
+    align-items:baseline;justify-content:space-between}
+  .vlabel .tick{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
+  .vvalue{font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px}
+  .vvalue.none{color:var(--red);font-weight:600;font-size:13.5px}
+  .vactions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .note{font-size:12.5px;color:var(--muted);margin-top:6px}
+
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:#fff;border:0;padding:9px 20px;font:inherit;font-weight:600;cursor:pointer;color:var(--muted)}
+  .seg button + button{border-left:1px solid var(--line)}
+  .seg button[aria-pressed=true]{background:var(--blue);color:#fff}
+  .seg button:hover:not([aria-pressed=true]){background:#f2f5f9}
+  .seg.sm button{padding:6px 13px;font-size:13px}
+
+  /* office hours */
+  .hours{border:1px solid var(--line);border-radius:8px;padding:12px;background:#fcfdfe}
+  .hrow{display:grid;grid-template-columns:126px auto 1fr;gap:10px;align-items:center;
+    padding:7px 0;border-top:1px solid var(--line)}
+  .hrow:first-of-type{border-top:0}
+  .hrow .hday{font-weight:600;font-size:13.5px}
+  .hrow .times{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .hrow .times input[type=time]{width:128px;padding:7px 9px}
+  .hrow.closed .times{opacity:.4}
+  .hours-preview{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .hours-preview b{color:var(--ink);font-weight:600}
+  @media(max-width:620px){
+    .hrow{grid-template-columns:1fr;gap:6px}
+    .fact{grid-template-columns:1fr;gap:2px}
+  }
+
+  .checkline{font-size:13.5px;color:var(--muted);margin:14px 0 10px;font-weight:600}
+  .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .meta{font-size:12.5px;color:var(--muted);margin-top:12px}
+  .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .share input{font-size:13px;background:#f7f9fc}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;background:var(--ink);color:#fff;
+    padding:11px 18px;border-radius:8px;font-size:14px;box-shadow:0 6px 22px rgba(0,0,0,.2);z-index:80}
+  .center{text-align:center;color:var(--muted);padding:36px 10px}
+  .hidden{display:none !important}
+
+  .overlay{position:fixed;inset:0;background:rgba(16,24,38,.55);display:flex;align-items:center;
+    justify-content:center;padding:20px;z-index:70}
+  .modal{background:#fff;border-radius:12px;max-width:470px;width:100%;padding:24px;
+    box-shadow:0 18px 50px rgba(0,0,0,.25)}
+  .modal h3{margin:0 0 10px;font-size:17px}
+  .modal p{margin:0 0 8px;color:#3c4759;font-size:14.5px}
+  .modal .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div>
+      <h1>Property Detail Verification</h1>
+      <div class="sub" id="waveSub">Loading…</div>
+    </div>
+    <div class="whoami" id="whoami"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="fatal" class="banner err hidden"></div>
+
+  <div class="panel" id="pickPanel">
+    <h2>Find your portfolio</h2>
+    <p class="hint" id="pickHint">Choose your Regional Manager to see the properties that need checking.</p>
+    <div class="row">
+      <label class="fl" for="rmSel">Regional Manager</label>
+      <select id="rmSel"><option value="">Select a name…</option></select>
+    </div>
+  </div>
+
+  <div id="portfolio" class="hidden">
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <h2 id="rmTitle"></h2>
+          <p class="hint" id="rmSubtitle" style="margin-bottom:0"></p>
+        </div>
+        <button class="btn ghost sm" id="backBtn">Change name</button>
+      </div>
+      <div class="progress"><span id="progBar" style="width:0%"></span></div>
+      <div class="prog-label" id="progLabel"></div>
+      <div id="doneBanner" class="banner good hidden" style="margin-top:14px"></div>
+      <div class="share">
+        <input type="text" id="shareUrl" readonly>
+        <button class="btn ghost sm" id="copyBtn">Copy link</button>
+      </div>
+    </div>
+    <div id="propList"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var FIELDS = [], BY_KEY = {};
+var state = { scope:'open', waveId:null, waves:[], rmSlug:null, regional:null, props:[], person:'' };
+var drafts = {};   // propertyId -> working values
+var rows   = {};   // propertyId -> { fieldKey: 'idle' | 'confirmed' | 'editing' }
+
+var DAY_KEYS  = ['mon','tue','wed','thu','fri','sat','sun'];
+var DAY_LABEL = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+var DAY_SHORT = { mon:'Mon', tue:'Tue', wed:'Wed', thu:'Thu', fri:'Fri', sat:'Sat', sun:'Sun' };
+
+var $ = function(s){ return document.querySelector(s); };
+function el(tag, attrs, kids){
+  var n = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(function(k){
+    if (k === 'class') n.className = attrs[k];
+    else if (k === 'text') n.textContent = attrs[k];
+    else if (k === 'html') n.innerHTML = attrs[k];
+    else if (k.slice(0,2) === 'on') n.addEventListener(k.slice(2), attrs[k]);
+    else if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+  });
+  (kids || []).forEach(function(c){ if (c) n.appendChild(c); });
+  return n;
+}
+function toast(msg){
+  var t = el('div', { class:'toast', text: msg });
+  document.body.appendChild(t);
+  setTimeout(function(){ t.remove(); }, 2800);
+}
+function api(path, opts){
+  return fetch(path, opts).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(b){
+      if (!r.ok) { var e = new Error(b.error || ('Request failed (' + r.status + ')')); e.body = b; throw e; }
+      return b;
+    });
+  });
+}
+function fmtDate(v){
+  if (!v) return '';
+  var s = String(v).trim();
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  var d = m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+function modal(opts){
+  return new Promise(function(resolve){
+    var overlay = el('div', { class:'overlay' });
+    var box = el('div', { class:'modal', role:'dialog', 'aria-modal':'true' });
+    box.appendChild(el('h3', { text: opts.title }));
+    (opts.lines || []).forEach(function(l){ box.appendChild(el('p', { text: l })); });
+    var acts = el('div', { class:'modal-actions' });
+    function close(v){ document.removeEventListener('keydown', onKey); overlay.remove(); resolve(v); }
+    (opts.buttons || []).forEach(function(b){
+      acts.appendChild(el('button', { class:'btn ' + (b.style || 'ghost'), type:'button', text:b.label,
+        onclick: function(){ close(b.value); } }));
+    });
+    box.appendChild(acts);
+    overlay.appendChild(box);
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) close(false); });
+    function onKey(e){ if (e.key === 'Escape') close(false); }
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    var f = acts.querySelector('.btn'); if (f) f.focus();
+  });
+}
+
+// ---------- office hours ----------
+function parseHours(v){
+  if (!v) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch(e){ return null; }
+}
+function blankDay(){ return { closed:false, open:'', close:'' }; }
+function expandHours(s){
+  if (!s) return null;
+  var out = {};
+  if (s.mode === 'daily') {
+    DAY_KEYS.forEach(function(d){ out[d] = Object.assign(blankDay(), (s.days||{})[d] || {}); });
+  } else {
+    var wd = Object.assign(blankDay(), s.weekdays || {});
+    ['mon','tue','wed','thu','fri'].forEach(function(d){ out[d] = Object.assign({}, wd); });
+    out.sat = Object.assign(blankDay(), s.saturday || {});
+    out.sun = Object.assign(blankDay(), s.sunday || {});
+  }
+  return out;
+}
+function hoursComplete(s){
+  var days = expandHours(s);
+  if (!days) return false;
+  var anyOpen = false;
+  for (var i=0;i<DAY_KEYS.length;i++){
+    var v = days[DAY_KEYS[i]];
+    if (!v) return false;
+    if (v.closed) continue;
+    if (!v.open || !v.close) return false;
+    anyOpen = true;
+  }
+  return anyOpen;
+}
+function to12h(h){
+  var m = String(h||'').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return String(h||'');
+  var hh = parseInt(m[1],10), suf = hh >= 12 ? 'PM' : 'AM';
+  hh = hh % 12; if (hh === 0) hh = 12;
+  return hh + ':' + m[2] + ' ' + suf;
+}
+function formatHours(s){
+  var days = expandHours(s);
+  if (!days) return '';
+  var sig = function(d){ return days[d].closed ? 'closed' : (days[d].open + '|' + days[d].close); };
+  var parts = [], i = 0;
+  while (i < DAY_KEYS.length){
+    var j = i;
+    while (j+1 < DAY_KEYS.length && sig(DAY_KEYS[j+1]) === sig(DAY_KEYS[i])) j++;
+    var span = i === j ? DAY_SHORT[DAY_KEYS[i]] : DAY_SHORT[DAY_KEYS[i]] + '-' + DAY_SHORT[DAY_KEYS[j]];
+    var v = days[DAY_KEYS[i]];
+    parts.push(span + ' ' + (v.closed ? 'Closed' : to12h(v.open) + '-' + to12h(v.close)));
+    i = j + 1;
+  }
+  return parts.join(', ');
+}
+function officeHoursText(f){
+  var s = parseHours(f.officeHoursStruct);
+  if (s && hoursComplete(s)) return formatHours(s);
+  return isBlank(f.officeHours) ? '' : String(f.officeHours).trim();
+}
+
+// ---------- field helpers ----------
+function isBlank(v){
+  if (v === undefined || v === null) return true;
+  var s = String(v).trim();
+  return s === '' || s === '-';
+}
+function effective(fields, f){
+  if (f.key === 'officeHours') return officeHoursText(fields);
+  if (f.autoIf && String(fields[f.autoIf.field] || '').trim() === f.autoIf.equals) return f.autoIf.value;
+  var v = fields[f.key];
+  return isBlank(v) ? '' : String(v).trim();
+}
+function isHidden(fields, f){
+  return !!(f.hiddenIf && String(fields[f.hiddenIf.field] || '').trim() === f.hiddenIf.equals);
+}
+function isRequired(fields, f){
+  if (isHidden(fields, f)) return false;
+  if (f.required) return true;
+  if (f.requiredIf) return String(fields[f.requiredIf.field] || '').trim() === f.requiredIf.equals;
+  return false;
+}
+function isAuto(fields, f){
+  return !!(f.autoIf && String(fields[f.autoIf.field] || '').trim() === f.autoIf.equals);
+}
+// Lines the reviewer actually has to work through: anything that must be answered,
+// plus anything that already carries a value worth verifying. An optional field
+// that is blank has nothing to check, so it is left out of the count.
+function checkableFields(live){
+  return FIELDS.filter(function(f){
+    if (f.locked || f.system) return false;
+    if (isHidden(live, f) || isAuto(live, f)) return false;
+    return isRequired(live, f) || !isBlank(effective(live, f));
+  });
+}
+function missingOf(fields){
+  return FIELDS.filter(function(f){
+    return !f.locked && !f.system && isRequired(fields, f) && isBlank(effective(fields, f));
+  }).map(function(f){ return f.key; });
+}
+
+// ---------- per-line state ----------
+function rowState(p, f){
+  var m = rows[p.id] || (rows[p.id] = {});
+  if (m[f.key]) return m[f.key];
+  // Blank on file means there is nothing to verify -- go straight to entry.
+  return isBlank(effective(p.fields || {}, f)) ? 'editing' : 'idle';
+}
+function setRowState(p, f, v){ (rows[p.id] || (rows[p.id] = {}))[f.key] = v; }
+
+function rowSettled(p, live, f){
+  var st = rowState(p, f);
+  if (st === 'confirmed') return true;
+  if (st === 'editing') return !isBlank(effective(live, f)) || !isRequired(live, f);
+  return false;
+}
+function checkProgress(p, live){
+  var list = checkableFields(live);
+  var done = list.filter(function(f){ return rowSettled(p, live, f); }).length;
+  return { done: done, total: list.length, all: done === list.length && list.length > 0 };
+}
+
+// ---------- identity ----------
+function personName(){
+  if (state.person) return state.person;
+  try { state.person = localStorage.getItem('pv_person') || ''; } catch(e){}
+  return state.person;
+}
+function setPerson(n){
+  state.person = (n || '').trim();
+  try { localStorage.setItem('pv_person', state.person); } catch(e){}
+  renderWho();
+}
+function askPerson(){
+  var v = window.prompt('Your name (recorded as "Completed by" on the properties you confirm):', personName());
+  if (v === null) return false;
+  if (!v.trim()) { toast('A name is needed to confirm details.'); return false; }
+  setPerson(v);
+  return true;
+}
+function renderWho(){
+  var box = $('#whoami');
+  box.innerHTML = '';
+  var n = personName();
+  if (n) {
+    box.appendChild(document.createTextNode('Signed in as ' + n));
+    box.appendChild(el('button', { text:'Change', onclick: function(){ askPerson(); } }));
+  } else {
+    box.appendChild(el('button', { text:'Set your name', onclick: function(){ askPerson(); } }));
+  }
+}
+
+// ---------- boot ----------
+function boot(){
+  renderWho();
+  var params = new URLSearchParams(location.search);
+  state.waveId = params.get('wave') || null;
+  state.scope = state.waveId ? 'wave' : 'open';
+
+  var wavesUrl = state.waveId
+    ? '/api/waves?wave=' + encodeURIComponent(state.waveId)
+    : '/api/waves?scope=open';
+
+  Promise.all([ api('/api/schema'), api(wavesUrl) ]).then(function(r){
+    FIELDS = r[0].fields;
+    FIELDS.forEach(function(f){ BY_KEY[f.key] = f; });
+
+    var d = r[1];
+    state.waves = state.waveId ? [d.wave] : (d.waves || []);
+
+    if (!state.waves.length) {
+      $('#waveSub').textContent = 'Nothing open right now';
+      $('#pickPanel').innerHTML = '<h2>Nothing to review yet</h2>' +
+        '<p class="hint">There are no open waves. If you were expecting one, check with Carlie.</p>';
+      return;
+    }
+
+    if (state.waveId) {
+      var w = d.wave;
+      $('#waveSub').textContent = w.name + dateSuffix(w);
+      $('#pickHint').textContent = 'Choose your Regional Manager to see the ' + w.name + ' properties that need checking.';
+    } else {
+      $('#waveSub').textContent = state.waves.length === 1
+        ? state.waves[0].name + dateSuffix(state.waves[0])
+        : state.waves.length + ' open waves';
+    }
+
+    var sel = $('#rmSel');
+    sel.innerHTML = '';
+    sel.appendChild(el('option', { value:'', text:'Select a name…' }));
+    (d.regionals || []).forEach(function(rg){
+      var tag = rg.complete ? ' ✓ complete' : ' — ' + (rg.verified || 0) + '/' + (rg.total || 0) + ' done';
+      sel.appendChild(el('option', { value:rg.rmSlug, text: rg.rmName + tag }));
+    });
+    sel.onchange = function(){ if (sel.value) openPortfolio(sel.value); };
+
+    var rm = params.get('rm');
+    if (rm) { sel.value = rm; openPortfolio(rm); }
+  }).catch(fatal);
+}
+
+function dateSuffix(w){
+  var bits = [];
+  if (w.dueDate) bits.push('due ' + fmtDate(w.dueDate));
+  if (w.transitionDate) bits.push('CRMiQ ' + fmtDate(w.transitionDate));
+  return bits.length ? ' • ' + bits.join(' • ') : '';
+}
+
+function fatal(e){
+  var box = $('#fatal');
+  box.classList.remove('hidden');
+  box.textContent = 'Something went wrong: ' + (e && e.message ? e.message : e);
+}
+
+function setUrl(url){ try { history.replaceState(null, '', url); } catch(e){} }
+
+function currentQuery(rmSlug){
+  var q = [];
+  if (state.waveId) q.push('wave=' + encodeURIComponent(state.waveId));
+  if (rmSlug) q.push('rm=' + encodeURIComponent(rmSlug));
+  return q.length ? '?' + q.join('&') : '';
+}
+
+function showPicker(){
+  state.rmSlug = null;
+  $('#portfolio').classList.add('hidden');
+  $('#pickPanel').classList.remove('hidden');
+  setUrl(location.pathname + currentQuery(null));
+}
+
+function openPortfolio(rmSlug){
+  state.rmSlug = rmSlug;
+  drafts = {}; rows = {};
+  var url = '/api/portfolio?rm=' + encodeURIComponent(rmSlug) +
+            (state.waveId ? '&wave=' + encodeURIComponent(state.waveId) : '');
+  return api(url).then(function(d){
+    state.regional = d.regional;
+    state.props = d.properties || [];
+    state.waves = d.waves || state.waves;
+    $('#pickPanel').classList.add('hidden');
+    $('#portfolio').classList.remove('hidden');
+    setUrl(location.pathname + currentQuery(rmSlug));
+    $('#shareUrl').value = location.origin + location.pathname + currentQuery(rmSlug);
+    render();
+    window.scrollTo({ top:0, behavior:'smooth' });
+  }).catch(fatal);
+}
+
+// ---------- rendering ----------
+function render(){
+  var total = state.props.length;
+  var done = state.props.filter(function(p){ return p.status === 'verified'; }).length;
+
+  $('#rmTitle').textContent = state.regional.rmName;
+  $('#rmSubtitle').textContent = total + (total === 1 ? ' property' : ' properties') +
+    (state.waveId ? ' in ' + (state.waves[0] ? state.waves[0].name : '') : ' to check');
+  $('#progBar').style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+  $('#progLabel').textContent = done + ' of ' + total + ' confirmed';
+
+  var banner = $('#doneBanner');
+  if (total && done === total) {
+    banner.classList.remove('hidden');
+    banner.textContent = 'All done — everything is confirmed and Carlie has been notified. Thank you.';
+  } else banner.classList.add('hidden');
+
+  var list = $('#propList');
+  list.innerHTML = '';
+  if (!total) {
+    list.appendChild(el('div', { class:'center', text:'Nothing is assigned to this Regional right now.' }));
+    return;
+  }
+
+  // One section per wave, newest first, so the latest import always sits on top
+  // and finished waves stay visible below it.
+  state.waves.forEach(function(w){
+    var props = state.props.filter(function(p){ return p.waveId === w.id; });
+    if (!props.length) return;
+
+    var vDone = props.filter(function(p){ return p.status === 'verified'; }).length;
+    var head = el('div', { class:'wavehead' }, [ el('h3', { text: w.name || '' }) ]);
+
+    var status = el('span', { class:'pill ' + (vDone === props.length ? 'verified' : 'needs_input'),
+      text: vDone === props.length ? 'Complete' : (vDone + ' of ' + props.length + ' done') });
+    head.appendChild(status);
+
+    var dates = el('div', { class:'dates' });
+    if (w.dueDate) {
+      dates.appendChild(document.createTextNode('Verify by '));
+      dates.appendChild(el('b', { text: fmtDate(w.dueDate) }));
+    }
+    if (w.transitionDate) {
+      if (w.dueDate) dates.appendChild(document.createTextNode('  •  '));
+      dates.appendChild(document.createTextNode('Moves to CRMiQ '));
+      dates.appendChild(el('b', { text: fmtDate(w.transitionDate) }));
+    }
+    if (dates.childNodes.length) head.appendChild(dates);
+
+    list.appendChild(head);
+    props.forEach(function(p){ list.appendChild(propCard(p)); });
+  });
+}
+
+var STATUS_LABEL = { verified:'Confirmed', ready:'Ready to confirm', in_progress:'In progress', needs_input:'Needs info' };
+
+function propCard(p){
+  var open = !!p._open;
+  var card = el('div', { class:'prop' + (open ? ' open' : '') + (p.status === 'verified' ? ' done' : '') });
+
+  var sub = 'Code ' + (p.fields.propertyCode || '—');
+  if (p.status !== 'verified') {
+    var live = drafts[p.id] || p.fields;
+    var pr = checkProgress(p, live);
+    sub += ' • ' + pr.done + ' of ' + pr.total + ' lines checked';
+  }
+
+  card.appendChild(el('button', { class:'prop-head', type:'button', onclick: function(){
+    p._open = !p._open; render();
+  }}, [
+    el('span', { class:'chev', html:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' }),
+    el('span', { class:'prop-title' }, [
+      el('strong', { text: p.fields.propertyName || '(unnamed)' }),
+      el('span', { text: sub })
+    ]),
+    el('span', { class:'pill ' + p.status, text: STATUS_LABEL[p.status] || p.status })
+  ]));
+
+  var body = el('div', { class:'prop-body' });
+  if (open) buildBody(body, p);
+  card.appendChild(body);
+  return card;
+}
+
+function referenceBlock(fields){
+  var dl = el('div', { class:'facts' });
+  FIELDS.filter(function(f){ return f.locked; }).forEach(function(f){
+    var v = fields[f.key];
+    if (isBlank(v)) return;
+    dl.appendChild(el('div', { class:'fact' }, [
+      el('dt', { text: f.label }),
+      el('dd', { text: f.type === 'date' ? fmtDate(v) : String(v) })
+    ]));
+  });
+  return dl;
+}
+
+function buildBody(body, p){
+  if (p.status === 'verified') {
+    body.appendChild(el('div', { class:'banner good',
+      text: 'Confirmed by ' + (p.verifiedBy || 'someone') + ' on ' +
+            new Date(p.verifiedAt).toLocaleString('en-US', { dateStyle:'medium', timeStyle:'short' }) + '.' }));
+    body.appendChild(referenceBlock(p.fields));
+    var dl = el('div', { class:'facts' });
+    FIELDS.forEach(function(f){
+      if (f.locked || f.system || isHidden(p.fields, f)) return;
+      dl.appendChild(el('div', { class:'fact' }, [
+        el('dt', { text: f.label }),
+        el('dd', { text: effective(p.fields, f) || '—' })
+      ]));
+    });
+    body.appendChild(dl);
+    body.appendChild(el('div', { class:'banner lock', text:'This property is locked because it has been confirmed.' }));
+    body.appendChild(el('div', { class:'actions' }, [
+      el('button', { class:'btn ghost', type:'button', text:'I need to make a correction', onclick: function(){
+        modal({ title:'Need to make a correction?',
+          lines:['Reach out to Carlie Ahern on Teams to make a correction.'],
+          buttons:[{ label:'Close', value:false, style:'ghost' }] });
+      }})
+    ]));
+    return;
+  }
+
+  var live = drafts[p.id] || (drafts[p.id] = Object.assign({}, p.fields));
+  var pr = checkProgress(p, live);
+
+  body.appendChild(el('div', { class:'banner info',
+    text: 'Check each line below one at a time. Confirm what is right, correct what is not, and fill in anything we do not have.' }));
+
+  body.appendChild(referenceBlock(live));
+
+  checkableFields(live).forEach(function(f){ body.appendChild(vrow(p, live, f)); });
+
+  body.appendChild(el('div', { class:'checkline',
+    text: pr.done + ' of ' + pr.total + ' lines checked' + (pr.all ? ' — ready to confirm' : '') }));
+
+  var actions = el('div', { class:'actions' });
+  var confirmBtn = el('button', { class:'btn ok', type:'button', text:'Save & confirm property',
+    onclick: function(ev){ askThenSubmit(p, ev.currentTarget); }});
+  if (!pr.all) confirmBtn.disabled = true;
+  actions.appendChild(confirmBtn);
+  actions.appendChild(el('button', { class:'btn ghost', type:'button', text:'Save for later',
+    onclick: function(ev){ submit(p, ev.currentTarget, false); }}));
+  body.appendChild(actions);
+
+  if (!pr.all) {
+    body.appendChild(el('div', { class:'note',
+      text:'Every line needs to be checked before this property can be confirmed.' }));
+  }
+  if (p.updatedAt) {
+    body.appendChild(el('div', { class:'meta',
+      text:'Last saved ' + new Date(p.updatedAt).toLocaleString('en-US', { dateStyle:'medium', timeStyle:'short' }) }));
+  }
+}
+
+// One verifiable line.
+function vrow(p, live, f){
+  var st = rowState(p, f);
+  var settled = rowSettled(p, live, f);
+  var value = effective(live, f);
+  var wasBlank = isBlank(effective(p.fields || {}, f));
+
+  var row = el('div', { class:'vrow ' + (settled ? 'settled' : (st === 'editing' && wasBlank ? 'blank' : 'todo')) });
+
+  var lab = el('div', { class:'vlabel' }, [ el('span', { text: f.label }) ]);
+  if (settled) {
+    lab.appendChild(el('span', { class:'tick',
+      text: st === 'confirmed' ? '✓ Confirmed correct' : (wasBlank ? '✓ Added' : '✓ Updated') }));
+  }
+  row.appendChild(lab);
+
+  if (st === 'idle' || st === 'confirmed') {
+    row.appendChild(el('div', { class:'vvalue', text: value || '—' }));
+    var acts = el('div', { class:'vactions' });
+    if (st === 'idle') {
+      acts.appendChild(el('button', { class:'btn ok tiny', type:'button', text:'Correct', onclick: function(){
+        setRowState(p, f, 'confirmed'); render();
+      }}));
+      acts.appendChild(el('button', { class:'btn ghost tiny', type:'button', text:'Needs fixing', onclick: function(){
+        setRowState(p, f, 'editing'); render();
+      }}));
+    } else {
+      acts.appendChild(el('button', { class:'linkbtn', type:'button', text:'Undo', onclick: function(){
+        setRowState(p, f, 'idle'); render();
+      }}));
+      acts.appendChild(el('button', { class:'linkbtn', type:'button', text:'Change this', onclick: function(){
+        setRowState(p, f, 'editing'); render();
+      }}));
+    }
+    row.appendChild(acts);
+    return row;
+  }
+
+  // editing
+  if (wasBlank) {
+    row.appendChild(el('div', { class:'vvalue none', text:'Not on file — please add it.' }));
+  }
+  row.appendChild(control(p, live, f));
+  if (!wasBlank) {
+    row.appendChild(el('div', { class:'vactions' }, [
+      el('button', { class:'linkbtn', type:'button', text:'Actually, it was right', onclick: function(){
+        live[f.key] = (p.fields || {})[f.key];
+        if (f.key === 'officeHours') live.officeHoursStruct = (p.fields || {}).officeHoursStruct;
+        setRowState(p, f, 'confirmed'); render();
+      }})
+    ]));
+  }
+  return row;
+}
+
+function control(p, live, f){
+  if (f.type === 'hours') return hoursControl(p, live);
+
+  if (f.type === 'yesno') {
+    var seg = el('div', { class:'seg' });
+    ['Yes','No'].forEach(function(opt){
+      var b = el('button', { type:'button', text:opt, onclick: function(){ live[f.key] = opt; render(); }});
+      b.setAttribute('aria-pressed', String(live[f.key]).trim() === opt ? 'true' : 'false');
+      seg.appendChild(b);
+    });
+    return seg;
+  }
+  if (f.type === 'textarea') {
+    var ta = el('textarea', { id:'f_' + p.id + '_' + f.key, placeholder: f.placeholder || '' });
+    ta.value = live[f.key] || '';
+    ta.addEventListener('input', function(){ live[f.key] = ta.value; });
+    ta.addEventListener('blur', function(){ render(); });
+    return ta;
+  }
+  var inp = el('input', { type: f.type === 'tel' ? 'tel' : 'text',
+    id:'f_' + p.id + '_' + f.key, placeholder: f.placeholder || '' });
+  inp.value = live[f.key] || '';
+  inp.addEventListener('input', function(){ live[f.key] = inp.value; });
+  inp.addEventListener('blur', function(){ render(); });
+  return inp;
+}
+
+function hoursControl(p, live){
+  var struct = parseHours(live.officeHoursStruct) ||
+               { mode:'grouped', weekdays:blankDay(), saturday:blankDay(), sunday:blankDay() };
+
+  function commit(){ live.officeHoursStruct = JSON.stringify(struct); render(); }
+
+  var box = el('div', { class:'hours' });
+
+  var seg = el('div', { class:'seg sm', style:'margin-bottom:12px' });
+  [['grouped','Same hours Mon–Fri'], ['daily','Set each day']].forEach(function(m){
+    var b = el('button', { type:'button', text:m[1], onclick: function(){
+      if ((struct.mode || 'grouped') === m[0]) return;
+      var days = expandHours(struct);
+      struct = m[0] === 'daily'
+        ? { mode:'daily', days: days }
+        : { mode:'grouped', weekdays: days.mon, saturday: days.sat, sunday: days.sun };
+      commit();
+    }});
+    b.setAttribute('aria-pressed', (struct.mode || 'grouped') === m[0] ? 'true' : 'false');
+    seg.appendChild(b);
+  });
+  box.appendChild(seg);
+
+  function dayRow(label, get, set){
+    var v = get();
+    var row = el('div', { class:'hrow' + (v.closed ? ' closed' : '') });
+    row.appendChild(el('div', { class:'hday', text: label }));
+
+    var oc = el('div', { class:'seg sm' });
+    [['open','Open'], ['closed','Closed']].forEach(function(o){
+      var b = el('button', { type:'button', text:o[1], onclick: function(){
+        var c = get(); set({ closed: o[0] === 'closed', open:c.open, close:c.close }); commit();
+      }});
+      b.setAttribute('aria-pressed', (v.closed ? 'closed' : 'open') === o[0] ? 'true' : 'false');
+      oc.appendChild(b);
+    });
+    row.appendChild(oc);
+
+    var times = el('div', { class:'times' });
+    var oi = el('input', { type:'time', 'aria-label': label + ' opens' });
+    oi.value = v.open || ''; oi.disabled = !!v.closed;
+    oi.addEventListener('change', function(){ var c = get(); set({ closed:c.closed, open:oi.value, close:c.close }); commit(); });
+    var ci = el('input', { type:'time', 'aria-label': label + ' closes' });
+    ci.value = v.close || ''; ci.disabled = !!v.closed;
+    ci.addEventListener('change', function(){ var c = get(); set({ closed:c.closed, open:c.open, close:ci.value }); commit(); });
+    times.appendChild(oi);
+    times.appendChild(el('span', { class:'dash', text:'to' }));
+    times.appendChild(ci);
+    row.appendChild(times);
+    return row;
+  }
+
+  if ((struct.mode || 'grouped') === 'grouped') {
+    box.appendChild(dayRow('Monday – Friday',
+      function(){ return Object.assign(blankDay(), struct.weekdays || {}); }, function(v){ struct.weekdays = v; }));
+    box.appendChild(dayRow('Saturday',
+      function(){ return Object.assign(blankDay(), struct.saturday || {}); }, function(v){ struct.saturday = v; }));
+    box.appendChild(dayRow('Sunday',
+      function(){ return Object.assign(blankDay(), struct.sunday || {}); }, function(v){ struct.sunday = v; }));
+  } else {
+    if (!struct.days) struct.days = {};
+    DAY_KEYS.forEach(function(d){
+      box.appendChild(dayRow(DAY_LABEL[d],
+        function(){ return Object.assign(blankDay(), struct.days[d] || {}); }, function(v){ struct.days[d] = v; }));
+    });
+  }
+
+  var prev = el('div', { class:'hours-preview' });
+  if (hoursComplete(struct)) {
+    prev.appendChild(document.createTextNode('Recorded as: '));
+    prev.appendChild(el('b', { text: formatHours(struct) }));
+  } else {
+    prev.textContent = 'Set open and close times for each day you are open, and mark the rest Closed.';
+  }
+  box.appendChild(prev);
+  return box;
+}
+
+// ---------- saving ----------
+function askThenSubmit(p, btn){
+  var live = drafts[p.id] || p.fields;
+  var pr = checkProgress(p, live);
+  if (!pr.all) { toast('Please check every line first.'); render(); return; }
+  var miss = missingOf(live);
+  if (miss.length) { toast('Some required information is still blank.'); render(); return; }
+  if (!personName() && !askPerson()) return;
+
+  modal({
+    title: 'Are you sure?',
+    lines: ['You will not be able to make a correction once confirmed.'],
+    buttons: [
+      { label:'Go back', value:false, style:'ghost' },
+      { label:'Confirm', value:true, style:'ok' }
+    ]
+  }).then(function(yes){
+    if (yes) submit(p, document.body.contains(btn) ? btn : null, true);
+  });
+}
+
+function submit(p, btn, verify){
+  var live = drafts[p.id] || p.fields;
+  var original = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  api('/api/save', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      waveId: p.waveId, propertyId: p.id,
+      fields: live, verify: !!verify, personName: personName()
+    })
+  }).then(function(d){
+    var idx = state.props.findIndex(function(x){ return x.id === p.id && x.waveId === p.waveId; });
+    var wasOpen = p._open;
+    if (idx >= 0) {
+      state.props[idx] = Object.assign(d.property, {
+        _open: wasOpen, waveId: p.waveId, waveName: p.waveName
+      });
+      // keep the inherited transition date visible after a save
+      if (!state.props[idx].fields.transitionDate && p.fields.transitionDate) {
+        state.props[idx].fields.transitionDate = p.fields.transitionDate;
+      }
+    }
+    if (verify) { delete drafts[p.id]; delete rows[p.id]; }
+    else { drafts[p.id] = Object.assign({}, d.property.fields); }
+
+    recountRegional();
+    render();
+    toast(verify ? 'Confirmed.' : 'Saved.');
+    if (verify && state.regional.complete) toast('Portfolio complete — thank you!');
+  }).catch(function(e){
+    if (btn) { btn.disabled = false; btn.textContent = original; }
+    if (e.body && e.body.locked) {
+      modal({ title:'Already confirmed',
+        lines:['Reach out to Carlie Ahern on Teams to make a correction.'],
+        buttons:[{ label:'Close', value:false, style:'ghost' }] })
+        .then(function(){ openPortfolio(state.rmSlug); });
+      return;
+    }
+    toast(e.message || 'Could not save.');
+  });
+}
+
+function recountRegional(){
+  var total = state.props.length;
+  var verified = state.props.filter(function(p){ return p.status === 'verified'; }).length;
+  state.regional = Object.assign(state.regional || {}, {
+    total: total, verified: verified, complete: total > 0 && verified === total
+  });
+}
+
+// ---------- wiring ----------
+$('#backBtn').addEventListener('click', function(){ showPicker(); });
+$('#copyBtn').addEventListener('click', function(){
+  var f = $('#shareUrl');
+  f.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(f.value).then(
+    function(){ toast('Link copied'); },
+    function(){ document.execCommand('copy'); toast('Link copied'); });
+  else { document.execCommand('copy'); toast('Link copied'); }
+});
+
+boot();
+})();
+</script>
+</body>
+</html>
