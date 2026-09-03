@@ -24,16 +24,18 @@
   .panel h2{font-size:15px;margin:0 0 4px;font-weight:600}
   .panel p.hint{margin:0 0 14px;color:var(--muted);font-size:13.5px}
   label.fl{display:block;font-weight:600;font-size:13.5px;margin-bottom:5px}
-  select,input[type=text],input[type=password],input[type=email],input[type=number],input[type=date],input[type=file]{
+  select,input[type=text],input[type=password],input[type=number],input[type=date],input[type=file]{
     width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
   input:focus,select:focus{outline:2px solid var(--blue);outline-offset:-1px}
+  textarea{width:100%;font:13px/1.5 ui-monospace,Consolas,monospace;padding:11px;
+    border:1px solid var(--line);border-radius:8px;background:#fafbfd;color:var(--ink);resize:vertical}
   .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:8px;
     padding:9px 15px;font:inherit;font-weight:600;cursor:pointer;background:var(--blue);color:#fff}
-  .btn:hover{background:var(--navy-2)}
+  .btn:hover:not([disabled]){background:var(--navy-2)}
   .btn[disabled]{opacity:.45;cursor:not-allowed}
   .btn.ghost{background:#fff;border-color:var(--line);color:var(--ink)}
-  .btn.ghost:hover{background:#f2f5f9}
-  .btn.danger{background:var(--red)} .btn.danger:hover{background:#8f1e17}
+  .btn.ghost:hover:not([disabled]){background:#f2f5f9}
+  .btn.danger{background:var(--red)} .btn.danger:hover:not([disabled]){background:#8f1e17}
   .btn.sm{padding:6px 11px;font-size:13px}
   .grid{display:grid;gap:14px}
   .g3{grid-template-columns:repeat(3,1fr)}
@@ -66,7 +68,12 @@
   code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:12.5px}
   details summary{cursor:pointer;font-weight:600;font-size:14px;padding:6px 0}
   .mini{font-size:12.5px;color:var(--muted)}
-  input.err{border-color:#e8a9a4;background:#fffafa}
+  .out-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+  .out-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:14px}
+  .out-row:last-child{border-bottom:0}
+  .out-row:nth-child(odd){background:#fafbfd}
+  .out-row .who{font-weight:600}
+  .out-row .what{font-size:12.5px;color:var(--muted);margin-top:2px}
 </style>
 </head>
 <body>
@@ -80,10 +87,9 @@
 
 <div class="wrap">
 
-  <!-- Passcode gate -->
   <div class="panel" id="gate">
     <h2>Admin passcode</h2>
-    <p class="hint">This is the <code>ADMIN_KEY</code> you set in Vercel. It's remembered on this device only.</p>
+    <p class="hint">This is the <code>ADMIN_KEY</code> set in Vercel. Remembered on this device only.</p>
     <div class="inline">
       <input type="password" id="keyInput" placeholder="Passcode" style="max-width:320px">
       <button class="btn" id="keyBtn">Unlock</button>
@@ -93,7 +99,6 @@
 
   <div id="main" class="hidden">
 
-    <!-- Wave picker + import -->
     <div class="panel">
       <div class="inline" style="justify-content:space-between">
         <div style="flex:1;min-width:240px">
@@ -109,7 +114,6 @@
 
     <div id="dash"></div>
 
-    <!-- Import -->
     <div class="panel">
       <h2>Start a new wave</h2>
       <p class="hint">Upload the same spreadsheet layout you use today. Headers are matched by name, and any dropdown left as <code>-</code> is treated as blank so the Regional has to answer it.</p>
@@ -139,15 +143,14 @@
           Does the property use HappyCo?, Phone Landline Number, Do residents call maintenance directly for emergencies?,
           If yes what is the number, Answering Service Provider, Directions to Forward,
           Directions to remove the forwarding, Office Hours, Completed by, CM/SM Name.</p>
-        <p class="mini" style="margin:4px 0"><strong>Optional extras:</strong> <code>Transition Date</code> (per property),
-          and <code>RM Email</code> so reminders can be sent.</p>
+        <p class="mini" style="margin:4px 0"><strong>Optional:</strong> <code>Transition Date</code> per property.</p>
         <p class="mini" style="margin:4px 0"><strong>Office hours</strong> can come in either shape, and both load straight into the
           day/time picker for the Regional to verify:</p>
         <p class="mini" style="margin:4px 0 0">
           &bull; one <code>Office Hours</code> cell such as <code>Mon-Fri 9am-6pm, Sat 10-4, Sun Closed</code>, or<br>
-          &bull; per-day columns: <code>Monday Hours</code> … <code>Sunday Hours</code> (values like <code>9:00 AM-6:00 PM</code> or <code>Closed</code>),
+          &bull; per-day columns: <code>Monday Hours</code> … <code>Sunday Hours</code> (<code>9:00 AM-6:00 PM</code> or <code>Closed</code>),
           or <code>Monday Open</code> + <code>Monday Close</code> pairs.<br>
-          Any day you do not mention is recorded as Closed, and the Regional still has to confirm it on screen.</p>
+          Any day not mentioned is recorded as Closed, and the Regional still confirms it on screen.</p>
       </details>
       <div id="preview" class="hidden"></div>
       <div class="inline" style="margin-top:6px">
@@ -191,7 +194,17 @@ function api(path, opts){
     });
   });
 }
-function fmtDate(iso){ return iso ? new Date(iso).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : '—'; }
+function copy(text, msg){
+  if(navigator.clipboard) navigator.clipboard.writeText(text).then(function(){ toast(msg||'Copied'); },
+    function(){ window.prompt('Copy this:', text); });
+  else window.prompt('Copy this:', text);
+}
+function fmtDate(v){
+  if(!v) return '';
+  var m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  var d = m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
 
 // ---------- gate ----------
 try { adminKey = localStorage.getItem('pv_admin_key') || ''; } catch(e){}
@@ -215,7 +228,7 @@ if(adminKey){
   loadWaves().then(function(){
     $('#gate').classList.add('hidden');
     $('#main').classList.remove('hidden');
-  }).catch(function(){ /* stale key: show the gate */ });
+  }).catch(function(){});
 }
 
 // ---------- waves ----------
@@ -258,26 +271,24 @@ $('#exportBtn').addEventListener('click', function(ev){
   if(!state.waveId) return toast('Pick a wave first.');
   var b = ev.currentTarget, label = b.textContent;
   b.disabled = true; b.textContent = 'Building…';
-  // Fetched with the passcode in a header rather than the URL, then saved from a blob.
   fetch('/api/export?wave='+encodeURIComponent(state.waveId), { headers:{ 'x-admin-key': adminKey } })
     .then(function(r){
       if(!r.ok) return r.json().catch(function(){return{};}).then(function(j){
         throw new Error(j.error || ('Export failed ('+r.status+')'));
       });
-      var name = 'export.xlsx';
-      var cd = r.headers.get('Content-Disposition') || '';
-      var m = cd.match(/filename="([^"]+)"/);
-      if(m) name = m[1];
+      var name='export.xlsx';
+      var m=(r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/);
+      if(m) name=m[1];
       return r.blob().then(function(blob){
-        var url = URL.createObjectURL(blob);
-        var a = el('a', { href:url, download:name });
+        var url=URL.createObjectURL(blob);
+        var a=el('a',{href:url,download:name});
         document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-        toast('Downloaded ' + name);
+        setTimeout(function(){URL.revokeObjectURL(url);},4000);
+        toast('Downloaded '+name);
       });
     })
     .catch(function(e){ toast(e.message); })
-    .then(function(){ b.disabled = false; b.textContent = label; });
+    .then(function(){ b.disabled=false; b.textContent=label; });
 });
 
 // ---------- dashboard ----------
@@ -289,11 +300,18 @@ function renderDash(){
   var totalProps = regs.reduce(function(s,r){ return s+(r.total||0); },0);
   var doneProps  = regs.reduce(function(s,r){ return s+(r.verified||0); },0);
   var doneRegs   = regs.filter(function(r){ return r.complete; }).length;
-  var noEmail    = regs.filter(function(r){ return !r.email; }).length;
+  var outstanding = regs.filter(function(r){ return !r.complete; })
+                        .sort(function(a,b){ return (b.total-b.verified)-(a.total-a.verified); });
 
-  // Stats
+  // ---- summary + the link to send out ----
   var stats = el('div',{class:'panel'});
   stats.appendChild(el('h2',{text: wave.name + (wave.archived ? ' (archived)' : '')}));
+  if(wave.dueDate || wave.transitionDate){
+    var bits=[];
+    if(wave.dueDate) bits.push('Verify by '+fmtDate(wave.dueDate));
+    if(wave.transitionDate) bits.push('Moves to CRMiQ '+fmtDate(wave.transitionDate));
+    stats.appendChild(el('p',{class:'hint',text:bits.join('  •  ')}));
+  }
   var g = el('div',{class:'grid g3',style:'margin-top:12px'});
   [[doneProps+' / '+totalProps,'Properties verified'],
    [doneRegs+' / '+regs.length,'Portfolios complete'],
@@ -302,107 +320,99 @@ function renderDash(){
   });
   stats.appendChild(g);
 
-  // One link for everyone. People pick their own name and see every open wave,
-  // newest on top, so nobody has to know which wave they are in.
   var linkBase = (d.baseUrl || location.origin) + '/';
-  var linkRow = el('div',{class:'inline',style:'margin-top:16px'});
+  stats.appendChild(el('label',{class:'fl',style:'margin-top:16px',text:'Link to send out'}));
   var linkIn = el('input',{type:'text',readonly:'readonly',style:'max-width:420px;background:#f7f9fc'});
   linkIn.value = linkBase;
-  linkRow.appendChild(linkIn);
-  linkRow.appendChild(el('button',{class:'btn ghost sm',text:'Copy link for the teams',onclick:function(){
-    linkIn.select();
-    if(navigator.clipboard) navigator.clipboard.writeText(linkIn.value).then(function(){toast('Link copied');});
-    else { document.execCommand('copy'); toast('Link copied'); }
-  }}));
-  stats.appendChild(el('label',{class:'fl',style:'margin-top:16px',text:'Link to send out'}));
-  stats.appendChild(linkRow);
+  stats.appendChild(el('div',{class:'inline'},[
+    linkIn,
+    el('button',{class:'btn ghost sm',text:'Copy link',onclick:function(){ linkIn.select(); copy(linkIn.value,'Link copied'); }})
+  ]));
   stats.appendChild(el('div',{class:'mini',style:'margin-top:6px',
     text:'Send this same link every wave. Each person picks their name and sees all their open waves, newest first.'}));
-
-  if(d.emailProvider === 'none'){
-    stats.appendChild(el('div',{class:'banner warn',style:'margin-top:14px',
-      html:'<strong>Email is not connected yet.</strong> Completion alerts and reminders are being written to the log below but not delivered. Set <code>EMAIL_PROVIDER</code> and an API key in Vercel to switch them on.'}));
-  }
-  if(noEmail){
-    stats.appendChild(el('div',{class:'banner info',style:'margin-top:10px',
-      text: noEmail + ' regional' + (noEmail===1?' has':'s have') + ' no email address on file — they can still use a shared link, but cannot be emailed or reminded.'}));
-  }
   root.appendChild(stats);
 
-  // Settings
+  // ---- who still owes you work ----
+  var op = el('div',{class:'panel'});
+  op.appendChild(el('h2',{text:'Still outstanding'}));
+
+  if(!outstanding.length){
+    op.appendChild(el('div',{class:'banner good',
+      text: regs.length ? 'Everyone has finished. Nothing outstanding for this wave.' : 'No regionals in this wave yet.'}));
+    root.appendChild(op);
+  } else {
+    op.appendChild(el('p',{class:'hint',
+      text: outstanding.length + ' of ' + regs.length + ' regionals still have properties to confirm. Copy the list to paste into an email or Teams.'}));
+
+    var list = el('div',{class:'out-list'});
+    outstanding.forEach(function(r){
+      var left = (r.total||0)-(r.verified||0);
+      var names = (r.outstanding||[]).slice(0,4).join(', ');
+      if((r.outstanding||[]).length>4) names += ' +'+((r.outstanding.length)-4)+' more';
+      list.appendChild(el('div',{class:'out-row'},[
+        el('div',{},[
+          el('div',{class:'who',text:r.rmName}),
+          el('div',{class:'what',text:names || '—'})
+        ]),
+        el('div',{class:'num',style:'white-space:nowrap;color:#5b6577;font-size:13px'},[
+          el('span',{text:left+' of '+(r.total||0)+' left'})
+        ])
+      ]));
+    });
+    op.appendChild(list);
+
+    // plain-text versions, ready to paste
+    var namesOnly = outstanding.map(function(r){ return r.rmName; }).join('; ');
+    var detailed = outstanding.map(function(r){
+      var left = (r.total||0)-(r.verified||0);
+      return r.rmName + ' — ' + left + ' of ' + (r.total||0) + ' outstanding: ' + (r.outstanding||[]).join(', ');
+    }).join('\n');
+
+    op.appendChild(el('div',{class:'inline',style:'margin-bottom:12px'},[
+      el('button',{class:'btn',text:'Copy names',onclick:function(){ copy(namesOnly,'Names copied'); }}),
+      el('button',{class:'btn ghost',text:'Copy names + properties',onclick:function(){ copy(detailed,'List copied'); }}),
+      el('button',{class:'btn ghost',text:'Show as text',onclick:function(){
+        var box = $('#outText');
+        box.classList.toggle('hidden');
+        if(!box.classList.contains('hidden')) box.focus();
+      }})
+    ]));
+    var ta = el('textarea',{id:'outText',class:'hidden',rows:'8',readonly:'readonly'});
+    ta.value = detailed;
+    op.appendChild(ta);
+    root.appendChild(op);
+  }
+
+  // ---- wave settings ----
   var setP = el('div',{class:'panel'});
   setP.appendChild(el('h2',{text:'Wave settings'}));
-  setP.appendChild(el('p',{class:'hint',text:'Reminders are checked once a day. A regional is emailed only if their portfolio is unfinished and they have not been reminded within the interval.'}));
   var sg = el('div',{class:'grid g2'});
-
   var dueIn = el('input',{type:'date'}); dueIn.value = wave.dueDate || '';
-  sg.appendChild(el('div',{},[el('label',{class:'fl',text:'Due date (verified by)'}),dueIn,
-    el('div',{class:'mini',text:'When you need this information confirmed.'})]));
-
+  sg.appendChild(el('div',{},[el('label',{class:'fl',text:'Due date (verified by)'}),dueIn]));
   var transIn = el('input',{type:'date'}); transIn.value = wave.transitionDate || '';
   sg.appendChild(el('div',{},[el('label',{class:'fl',text:'Transition date (moves to CRMiQ)'}),transIn,
     el('div',{class:'mini',text:'Used for any property whose row has no date of its own.'})]));
-
-  var remIn = el('input',{type:'number',min:'0',step:'1'}); remIn.value = wave.reminderDays || 0;
-  sg.appendChild(el('div',{},[el('label',{class:'fl',text:'Remind every N days'}),remIn]));
-
-  var onWrap = el('div',{},[el('label',{class:'fl',text:'Reminders'})]);
-  var onLbl = el('label',{class:'mini',style:'display:flex;align-items:center;gap:7px;padding-top:8px'});
-  var onIn = el('input',{type:'checkbox',style:'width:auto'}); onIn.checked = !!wave.remindersOn;
-  onLbl.appendChild(onIn); onLbl.appendChild(document.createTextNode('Send automatic reminders'));
-  onWrap.appendChild(onLbl);
-  sg.appendChild(onWrap);
   setP.appendChild(sg);
-
-  var setActions = el('div',{class:'inline',style:'margin-top:14px'});
-  setActions.appendChild(el('button',{class:'btn',text:'Save settings',onclick:function(ev){
-    var b=ev.currentTarget; b.disabled=true;
-    api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'settings',waveId:state.waveId,dueDate:dueIn.value||null,
-        transitionDate:transIn.value||null,
-        reminderDays:Number(remIn.value)||0,remindersOn:onIn.checked})})
-      .then(loadDash).then(function(){toast('Settings saved');})
-      .catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
-  }}));
-  setActions.appendChild(el('button',{class:'btn ghost',text:'Send invite email to everyone unfinished',onclick:function(ev){
-    if(!confirm('Send the invite email to every regional with an address on file who has not finished?')) return;
-    var b=ev.currentTarget; b.disabled=true;
-    api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'invite',waveId:state.waveId})})
-      .then(function(r){
-        var sent=(r.results||[]).filter(function(x){return x.sent==='sent';}).length;
-        var logged=(r.results||[]).filter(function(x){return x.sent==='logged_only';}).length;
-        toast(sent?('Sent '+sent+' invites'):(logged?('Logged '+logged+' invites (email not connected)'):'Nothing to send'));
-      }).then(loadDash).catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
-  }}));
-  setActions.appendChild(el('button',{class:'btn ghost',text:'Run reminders now',onclick:function(ev){
-    if(!confirm('Send a reminder now to every unfinished regional with an address on file?')) return;
-    var b=ev.currentTarget; b.disabled=true;
-    api('/api/remind',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({waveId:state.waveId,force:true})})
-      .then(function(r){
-        var sent=(r.results||[]).filter(function(x){return x.sent;}).length;
-        toast(sent?('Processed '+sent+' reminders'):'Nobody was due a reminder');
-      }).then(loadDash).catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
-  }}));
-  setP.appendChild(setActions);
+  setP.appendChild(el('div',{class:'inline',style:'margin-top:14px'},[
+    el('button',{class:'btn',text:'Save settings',onclick:function(ev){
+      var b=ev.currentTarget; b.disabled=true;
+      api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'settings',waveId:state.waveId,
+          dueDate:dueIn.value||null,transitionDate:transIn.value||null})})
+        .then(loadDash).then(function(){toast('Settings saved');})
+        .catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
+    }})
+  ]));
   root.appendChild(setP);
 
-  // Regionals table
+  // ---- all regionals ----
   var tp = el('div',{class:'panel'});
-  tp.appendChild(el('h2',{text:'Regionals'}));
-  tp.appendChild(el('p',{class:'hint',text:'Add an email address to enable invites and reminders for that person. Their link works with or without one.'}));
-
+  tp.appendChild(el('h2',{text:'All regionals'}));
   var scroll = el('div',{class:'tbl-scroll'});
   var tbl = el('table');
-  var thead = el('thead');
-  thead.appendChild(el('tr',{},['Regional','Progress','Done','Email','Last reminded','Link'].map(function(h){
-    return el('th',{text:h});
-  })));
-  tbl.appendChild(thead);
+  tbl.appendChild(el('thead',{},[el('tr',{},['Regional','Progress','Done','Link'].map(function(h){
+    return el('th',{text:h}); }))]));
   var tbody = el('tbody');
-  var emailInputs = {};
-
   regs.forEach(function(r){
     var pct = r.total ? Math.round((r.verified||0)/r.total*100) : 0;
     var tr = el('tr');
@@ -419,55 +429,25 @@ function renderDash(){
       document.createTextNode(' '),
       el('span',{class:'pill '+(r.complete?'yes':'no'),text:r.complete?'Complete':'Open'})
     ]));
-
-    var ei = el('input',{type:'email',placeholder:'name@rpmliving.com'});
-    ei.value = r.email || '';
-    emailInputs[r.rmSlug] = ei;
-    tr.appendChild(el('td',{style:'min-width:220px'},[ei]));
-
-    tr.appendChild(el('td',{class:'mini',text: r.lastReminderAt ? fmtDate(r.lastReminderAt) : '—'}));
-
-    var link = (d.baseUrl || location.origin) + '/?wave='+encodeURIComponent(state.waveId)+'&rm='+encodeURIComponent(r.rmSlug);
+    var link = (d.baseUrl || location.origin) + '/?rm='+encodeURIComponent(r.rmSlug);
     tr.appendChild(el('td',{},[
-      el('button',{class:'btn ghost sm',text:'Copy',onclick:function(){
-        navigator.clipboard ? navigator.clipboard.writeText(link).then(function(){toast('Link copied');})
-                            : window.prompt('Copy this link:', link);
-      }})
+      el('button',{class:'btn ghost sm',text:'Copy',onclick:function(){ copy(link,'Link copied'); }})
     ]));
     tbody.appendChild(tr);
   });
   tbl.appendChild(tbody);
   scroll.appendChild(tbl);
   tp.appendChild(scroll);
-
-  tp.appendChild(el('div',{class:'inline',style:'margin-top:14px'},[
-    el('button',{class:'btn',text:'Save email addresses',onclick:function(ev){
-      var b=ev.currentTarget; b.disabled=true;
-      var emails={}, bad=false;
-      Object.keys(emailInputs).forEach(function(slug){
-        var v=emailInputs[slug].value.trim();
-        emailInputs[slug].classList.remove('err');
-        if(v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ emailInputs[slug].classList.add('err'); bad=true; }
-        emails[slug]=v;
-      });
-      if(bad){ b.disabled=false; return toast('One or more addresses look wrong.'); }
-      api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'setEmails',waveId:state.waveId,emails:emails})})
-        .then(loadDash).then(function(){toast('Email addresses saved');})
-        .catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
-    }})
-  ]));
   root.appendChild(tp);
 
-  // Reopen a locked property. Reviewers are told to message Carlie for a
-  // correction; this is where that request gets actioned.
+  // ---- reopen a confirmed property ----
   var up = el('div',{class:'panel'});
   up.appendChild(el('h2',{text:'Reopen a confirmed property'}));
   up.appendChild(el('p',{class:'hint',
     text:'Once someone confirms a property it locks, and they are told to message you. Unlock it here and they can edit and re-confirm it.'}));
   var uSel = el('select');
   uSel.appendChild(el('option',{value:'',text:'Loading confirmed properties…'}));
-  var uRow = el('div',{class:'inline'},[
+  up.appendChild(el('div',{class:'inline'},[
     el('div',{style:'flex:1;min-width:260px'},[uSel]),
     el('button',{class:'btn ghost',text:'Unlock',onclick:function(ev){
       if(!uSel.value) return toast('Pick a property first.');
@@ -480,17 +460,13 @@ function renderDash(){
         .catch(function(e){ toast(e.message); })
         .then(function(){ b.disabled=false; });
     }})
-  ]);
-  up.appendChild(uRow);
+  ]));
   root.appendChild(up);
 
   api('/api/admin?action=properties&wave='+encodeURIComponent(state.waveId)).then(function(r){
     var locked = (r.properties||[]).filter(function(p){ return p.verified; });
     uSel.innerHTML = '';
-    if(!locked.length){
-      uSel.appendChild(el('option',{value:'',text:'No confirmed properties yet'}));
-      return;
-    }
+    if(!locked.length){ uSel.appendChild(el('option',{value:'',text:'No confirmed properties yet'})); return; }
     uSel.appendChild(el('option',{value:'',text:'Select a property…'}));
     locked.forEach(function(p){
       uSel.appendChild(el('option',{ value:p.id,
@@ -500,35 +476,13 @@ function renderDash(){
     uSel.innerHTML=''; uSel.appendChild(el('option',{value:'',text:'Could not load properties'}));
   });
 
-  // Email log
-  var lp = el('div',{class:'panel'});
+  // ---- danger zone ----
+  var dz = el('div',{class:'panel'});
   var det = el('details');
-  det.appendChild(el('summary',{text:'Recent email activity ('+(d.recentEmails||[]).length+')'}));
-  if(!(d.recentEmails||[]).length){
-    det.appendChild(el('p',{class:'mini',text:'Nothing yet.'}));
-  } else {
-    var lt=el('table');
-    lt.appendChild(el('thead',{},[el('tr',{},['When','Type','To','Status'].map(function(h){return el('th',{text:h});}))]));
-    var lb=el('tbody');
-    d.recentEmails.forEach(function(m){
-      lb.appendChild(el('tr',{},[
-        el('td',{class:'mini',text:fmtDate(m.at)}),
-        el('td',{text:m.kind||''}),
-        el('td',{class:'mini',text:(m.to||[]).join(', ')}),
-        el('td',{},[el('span',{class:'pill '+(m.status==='sent'?'yes':'no'),
-          text: m.status==='logged_only' ? 'logged only' : (m.status||'')})])
-      ]));
-    });
-    lt.appendChild(lb);
-    det.appendChild(lt);
-  }
-  lp.appendChild(det);
-
-  var dz = el('details',{style:'margin-top:10px'});
-  dz.appendChild(el('summary',{text:'Danger zone'}));
+  det.appendChild(el('summary',{text:'Danger zone'}));
   var delName = el('input',{type:'text',placeholder:'Type the wave name to confirm',style:'max-width:320px;margin:8px 0'});
-  dz.appendChild(delName);
-  dz.appendChild(el('div',{},[el('button',{class:'btn danger',text:'Delete this wave and all its answers',onclick:function(ev){
+  det.appendChild(delName);
+  det.appendChild(el('div',{},[el('button',{class:'btn danger',text:'Delete this wave and all its answers',onclick:function(ev){
     if(!confirm('Permanently delete "'+wave.name+'" and every answer in it? This cannot be undone.')) return;
     var b=ev.currentTarget; b.disabled=true;
     api('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -536,8 +490,8 @@ function renderDash(){
       .then(function(){ state.waveId=null; toast('Wave deleted'); return loadWaves(); })
       .catch(function(e){toast(e.message);}).then(function(){b.disabled=false;});
   }})]));
-  lp.appendChild(dz);
-  root.appendChild(lp);
+  dz.appendChild(det);
+  root.appendChild(dz);
 }
 
 // ---------- import ----------
@@ -568,7 +522,7 @@ $('#file').addEventListener('change', function(ev){
       $('#importBtn').disabled = false;
     }catch(err){
       $('#preview').classList.remove('hidden');
-      $('#preview').innerHTML = '';
+      $('#preview').innerHTML='';
       $('#preview').appendChild(el('div',{class:'banner err',text:'Could not read that file: '+err.message}));
     }
   };
@@ -578,15 +532,13 @@ $('#file').addEventListener('change', function(ev){
 function showPreview(rows, sheetName){
   var box = $('#preview');
   box.classList.remove('hidden');
-  box.innerHTML = '';
+  box.innerHTML='';
   var headers = Object.keys(rows[0]);
-  var rmKey = headers.find(function(h){ return /rm name|regional|rvp/i.test(h); });
+  var rmKey = headers.filter(function(h){ return /rm name|regional|rvp/i.test(h); })[0];
   var rms = rmKey ? Object.keys(rows.reduce(function(a,r){ a[String(r[rmKey]).trim()]=1; return a; },{})).filter(Boolean) : [];
-
   box.appendChild(el('div',{class:'banner good',
     text:'Read '+rows.length+' rows from sheet "'+sheetName+'"'+(rms.length?(' across '+rms.length+' regionals'):'')+'.'}));
-  box.appendChild(el('div',{class:'mini',style:'margin-bottom:12px',
-    text:'Columns found: '+headers.join(' · ')}));
+  box.appendChild(el('div',{class:'mini',style:'margin-bottom:12px',text:'Columns found: '+headers.join(' · ')}));
 }
 
 $('#importBtn').addEventListener('click', function(ev){
@@ -600,7 +552,7 @@ $('#importBtn').addEventListener('click', function(ev){
       transitionDate:$('#transitionDate').value||null,
       rows: state.parsedRows, overwrite: $('#overwrite').checked }) })
     .then(function(r){
-      var box = $('#importMsg'); box.innerHTML = '';
+      var box = $('#importMsg'); box.innerHTML='';
       box.appendChild(el('div',{class:'banner good',
         text:'Imported '+r.imported+' properties across '+r.regionals+' regionals into "'+r.waveName+'".'
              + (r.skipped ? ' Skipped '+r.skipped+' empty rows.' : '')}));

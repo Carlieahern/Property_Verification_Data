@@ -23,9 +23,6 @@ Object.assign(HEADER_MAP, {
   [norm('Property ID')]: 'propertyCode',
   [norm('Do residents call maintenance directly for emergencies?')]: 'maintDirect',
   [norm('Emergency Number')]: 'maintNumber',
-  [norm('RM Email')]: '__rmEmail',
-  [norm('Regional Email')]: '__rmEmail',
-  [norm('Email')]: '__rmEmail',
   [norm('Transition Date')]: 'transitionDate',
   [norm('Transition')]: 'transitionDate',
   [norm('CRMiQ Date')]: 'transitionDate',
@@ -101,7 +98,6 @@ module.exports = async (req, res) => {
     rows.forEach((raw, idx) => {
       const fields = {};
       const byDay = {};
-      let rmEmail = '';
       for (const [header, value] of Object.entries(raw)) {
         const h = norm(header);
         const v = isBlank(value) ? '' : String(value).trim();   // "-" counts as blank
@@ -117,7 +113,6 @@ module.exports = async (req, res) => {
 
         const key = HEADER_MAP[h];
         if (!key) { if (String(header).trim()) unmatched.add(String(header).trim()); continue; }
-        if (key === '__rmEmail') { rmEmail = v; continue; }
         fields[key] = v;
       }
 
@@ -150,11 +145,10 @@ module.exports = async (req, res) => {
       });
 
       if (!regionals.has(rmSlug)) {
-        regionals.set(rmSlug, { rmSlug, rmName: fields.rmName, email: rmEmail || '', total: 0, verified: 0, complete: false, outstanding: [] });
+        regionals.set(rmSlug, { rmSlug, rmName: fields.rmName, total: 0, verified: 0, complete: false, outstanding: [] });
       }
       const r = regionals.get(rmSlug);
       r.total += 1;
-      if (rmEmail && !r.email) r.email = rmEmail;
       r.outstanding.push(fields.propertyName || propId);
     });
 
@@ -174,8 +168,6 @@ module.exports = async (req, res) => {
       regionalCount: regionals.size,
       dueDate: body.dueDate || null,
       transitionDate: body.transitionDate || null,
-      reminderDays: Number(body.reminderDays) > 0 ? Number(body.reminderDays) : 0,
-      remindersOn: !!body.remindersOn,
       archived: false
     }, { merge: true });
 

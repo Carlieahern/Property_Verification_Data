@@ -1,6 +1,3 @@
 {
-  "cleanUrls": true,
-  "crons": [
-    { "path": "/api/remind", "schedule": "0 13 * * *" }
-  ]
+  "cleanUrls": true
 }

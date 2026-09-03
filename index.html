@@ -20,10 +20,6 @@
   header .wrap{padding-bottom:0;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
   h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.2px}
   .sub{font-size:13px;opacity:.75;margin-top:2px}
-  .whoami{font-size:13px;opacity:.9}
-  .whoami button{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;
-    border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;margin-left:6px}
-  .whoami button:hover{background:rgba(255,255,255,.12)}
 
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
     padding:20px;margin-bottom:18px}
@@ -101,6 +97,7 @@
   .vrow.settled{border-color:#bfe4d4;background:#fbfefc}
   .vrow.todo{border-color:#e8d3a8;background:#fffdf8}
   .vrow.blank{border-color:#e8a9a4;background:#fffafa}
+  .vrow.completedby{border-style:dashed}
   .vlabel{font-weight:600;font-size:13.5px;margin-bottom:7px;display:flex;gap:9px;
     align-items:baseline;justify-content:space-between}
   .vlabel .tick{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
@@ -160,7 +157,6 @@
       <h1>Property Detail Verification</h1>
       <div class="sub" id="waveSub">Loading…</div>
     </div>
-    <div class="whoami" id="whoami"></div>
   </div>
 </header>
 
@@ -389,39 +385,22 @@ function checkProgress(p, live){
   return { done: done, total: list.length, all: done === list.length && list.length > 0 };
 }
 
-// ---------- identity ----------
-function personName(){
-  if (state.person) return state.person;
-  try { state.person = localStorage.getItem('pv_person') || ''; } catch(e){}
-  return state.person;
-}
-function setPerson(n){
-  state.person = (n || '').trim();
-  try { localStorage.setItem('pv_person', state.person); } catch(e){}
-  renderWho();
-}
-function askPerson(){
-  var v = window.prompt('Your name (recorded as "Completed by" on the properties you confirm):', personName());
-  if (v === null) return false;
-  if (!v.trim()) { toast('A name is needed to confirm details.'); return false; }
-  setPerson(v);
-  return true;
-}
-function renderWho(){
-  var box = $('#whoami');
-  box.innerHTML = '';
-  var n = personName();
-  if (n) {
-    box.appendChild(document.createTextNode('Signed in as ' + n));
-    box.appendChild(el('button', { text:'Change', onclick: function(){ askPerson(); } }));
-  } else {
-    box.appendChild(el('button', { text:'Set your name', onclick: function(){ askPerson(); } }));
+// ---------- who is completing this ----------
+// Each property records its own "Completed by". Deliberately NOT carried over
+// from the previous property: typing your name against each one is a small,
+// intentional friction, the same reason every line is confirmed individually.
+function completedByOf(p, live){
+  if (!live.__cbSeeded) {
+    live.__cbSeeded = true;
+    if (!String(live.completedBy || '').trim()) {
+      live.completedBy = (p.fields && p.fields.completedBy) || '';
+    }
   }
+  return String(live.completedBy || '').trim();
 }
 
 // ---------- boot ----------
 function boot(){
-  renderWho();
   var params = new URLSearchParams(location.search);
   state.waveId = params.get('wave') || null;
   state.scope = state.waveId ? 'wave' : 'open';
@@ -648,21 +627,39 @@ function buildBody(body, p){
 
   checkableFields(live).forEach(function(f){ body.appendChild(vrow(p, live, f)); });
 
+  // Completed by — attribution, not a line to verify, so it sits on its own.
+  var who = completedByOf(p, live);
+  var whoRow = el('div', { class:'vrow completedby' + (who ? ' settled' : ' blank') });
+  var whoLab = el('div', { class:'vlabel' }, [ el('span', { text:'Completed by' }) ]);
+  if (who) whoLab.appendChild(el('span', { class:'tick', text:'✓' }));
+  whoRow.appendChild(whoLab);
+  whoRow.appendChild(el('div', { class:'note', style:'margin-top:0;margin-bottom:8px',
+    text:'Type your full name to sign off on this property. Signed separately for each one.' }));
+  var whoInput = el('input', { type:'text', id:'cb_' + p.id, placeholder:'Type your full name to sign' });
+  whoInput.value = live.completedBy || '';
+  whoInput.addEventListener('input', function(){ live.completedBy = whoInput.value; });
+  whoInput.addEventListener('blur', function(){ render(); });
+  whoRow.appendChild(whoInput);
+  body.appendChild(whoRow);
+
   body.appendChild(el('div', { class:'checkline',
-    text: pr.done + ' of ' + pr.total + ' lines checked' + (pr.all ? ' — ready to confirm' : '') }));
+    text: pr.done + ' of ' + pr.total + ' lines checked' +
+          (pr.all && who ? ' — ready to confirm' : '') }));
 
   var actions = el('div', { class:'actions' });
   var confirmBtn = el('button', { class:'btn ok', type:'button', text:'Save & confirm property',
     onclick: function(ev){ askThenSubmit(p, ev.currentTarget); }});
-  if (!pr.all) confirmBtn.disabled = true;
+  if (!pr.all || !who) confirmBtn.disabled = true;
   actions.appendChild(confirmBtn);
   actions.appendChild(el('button', { class:'btn ghost', type:'button', text:'Save for later',
     onclick: function(ev){ submit(p, ev.currentTarget, false); }}));
   body.appendChild(actions);
 
-  if (!pr.all) {
+  if (!pr.all || !who) {
     body.appendChild(el('div', { class:'note',
-      text:'Every line needs to be checked before this property can be confirmed.' }));
+      text: !pr.all
+        ? 'Every line needs to be checked before this property can be confirmed.'
+        : 'Enter your name above to confirm this property.' }));
   }
   if (p.updatedAt) {
     body.appendChild(el('div', { class:'meta',
@@ -837,7 +834,15 @@ function askThenSubmit(p, btn){
   if (!pr.all) { toast('Please check every line first.'); render(); return; }
   var miss = missingOf(live);
   if (miss.length) { toast('Some required information is still blank.'); render(); return; }
-  if (!personName() && !askPerson()) return;
+
+  var who = String(live.completedBy || '').trim();
+  if (!who) {
+    toast('Please enter your name under "Completed by".');
+    render();
+    var box = document.getElementById('cb_' + p.id);
+    if (box) box.focus();
+    return;
+  }
 
   modal({
     title: 'Are you sure?',
@@ -861,7 +866,8 @@ function submit(p, btn, verify){
     headers:{ 'Content-Type':'application/json' },
     body: JSON.stringify({
       waveId: p.waveId, propertyId: p.id,
-      fields: live, verify: !!verify, personName: personName()
+      fields: live, verify: !!verify,
+      personName: String(live.completedBy || '').trim()
     })
   }).then(function(d){
     var idx = state.props.findIndex(function(x){ return x.id === p.id && x.waveId === p.waveId; });

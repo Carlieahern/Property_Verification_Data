@@ -4,12 +4,12 @@ const { getFirestore } = require('firebase-admin/firestore');
 // ---------------------------------------------------------------------------
 // ISOLATION NOTE
 // This app must run against its OWN Firebase project -- never the one holding
-// live company assumption data. It touches exactly two top-level collections,
+// live company assumption data. It touches exactly one top-level collection,
 // listed in ALLOWED below, and every database handle in the app is created
 // through the helpers at the bottom of this file. There is deliberately no
 // exported raw collection() accessor.
 // ---------------------------------------------------------------------------
-const ALLOWED = ['pvWaves', 'pvEmailLog'];
+const ALLOWED = ['pvWaves'];
 
 let db = null;
 
@@ -74,6 +74,5 @@ const wavesCol = ()   => col('pvWaves');
 const waveDoc  = (id) => wavesCol().doc(id);
 const propsCol = (id) => waveDoc(id).collection('properties');
 const regCol   = (id) => waveDoc(id).collection('regionals');
-const emailCol = ()   => col('pvEmailLog');
 
-module.exports = { getDb, col, wavesCol, waveDoc, propsCol, regCol, emailCol };
+module.exports = { getDb, col, wavesCol, waveDoc, propsCol, regCol };
