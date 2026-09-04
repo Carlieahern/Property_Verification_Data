@@ -58,13 +58,21 @@ afterwards -- including being skipped by a later *Add or update* import once con
 ### Editing a property
 
 `/admin` -> **Edit a property** -> pick it from the list. The form loads with the current
-values; change anything and save. What you clear becomes required entry for the Regional
-again, and the result names exactly what changed.
+values; change anything and save. The result names exactly what changed, and what is now
+blank for the Regional.
 
-Confirmed properties are refused. A signature means somebody stood behind those values,
-so the panel offers **Unlock this property** instead: unlocking returns it to the
-Regional as unconfirmed, then it is editable. Every admin edit is recorded in the
-property's history and appears in the Change Log sheet of the export.
+A **confirmed property can still be edited, and the confirmation is kept** -- this is for
+changes the property itself has asked you to make, where the person who signed it off
+still stands behind the record. The edit is written to the property's history as an
+override, with the optional reason you type, and appears in the Change Log sheet of the
+export.
+
+If an override clears a required field, the property stops counting as complete and
+returns to the Regional's list. The result says so plainly, since that un-finishes a
+portfolio.
+
+Where the Regional should look at it again instead, **Unlock and send back** drops the
+confirmation and returns it to them unconfirmed.
 
 Changing the Regional Manager moves the property to that person's list, and both
 portfolios are recounted.

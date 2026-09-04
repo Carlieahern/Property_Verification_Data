@@ -134,7 +134,7 @@
 
     <div class="panel">
       <h2>Edit a property</h2>
-      <p class="hint">Change details on a property that is already in the wave. Confirmed properties are locked — unlock one below first if it needs changing.</p>
+      <p class="hint">Change details on a property already in the wave. A confirmed property can still be edited — the confirmation is kept, for changes the property itself has asked for.</p>
       <div class="row" style="max-width:560px">
         <label class="fl" for="editSel">Property</label>
         <select id="editSel"><option value="">Choose a property…</option></select>
@@ -670,24 +670,27 @@ $('#editSel').addEventListener('change', function(){
     .then(function(p){
       state.editInputs = state.editInputs || {};
 
+      // propertyForm() empties the container, so the banner goes in afterwards,
+      // inserted at the top rather than appended below the fields.
+      propertyForm($('#editForm'), state.editInputs, p.fields, true);
+
       if (p.verified) {
-        $('#editForm').appendChild(el('div',{ class:'banner warn',
+        var warn = el('div',{ class:'banner warn',
           text:'Confirmed by ' + (p.verifiedBy||'someone') +
                (p.verifiedAt ? ' on ' + fmtDate(p.verifiedAt) : '') +
-               '. Unlock it before editing, so it goes back to them as unconfirmed.' }));
-        $('#editActions').appendChild(el('button',{ class:'btn', text:'Unlock this property', onclick:function(ev){
-          var b=ev.currentTarget; b.disabled=true;
-          api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ action:'unlockProperty', waveId: state.waveId, propertyId: id }) })
-            .then(function(){ toast('Unlocked'); return loadEditList().then(function(){
-              $('#editSel').value = id; $('#editSel').dispatchEvent(new Event('change')); }); })
-            .then(loadDash)
-            .catch(function(e){ toast(e.message); b.disabled=false; });
-        }}));
-        return;
+               '. Editing here keeps that confirmation — for changes the property has asked you to make. ' +
+               'To send it back to them to redo instead, use Unlock below.' });
+        $('#editForm').insertBefore(warn, $('#editForm').firstChild);
       }
 
-      propertyForm($('#editForm'), state.editInputs, p.fields, true);
+      // Optional reason, kept alongside the edit in the property history.
+      var noteRow = el('div',{ class:'row', style:'margin-top:14px;max-width:560px' });
+      noteRow.appendChild(el('label',{ class:'fl',
+        text: p.verified ? 'Why (recorded with the override)' : 'Note (optional)' }));
+      state.editNote = el('input',{ type:'text',
+        placeholder: p.verified ? 'e.g. site called, new direct line' : 'optional' });
+      noteRow.appendChild(state.editNote);
+      $('#editForm').appendChild(noteRow);
 
       if ((p.missing||[]).length) {
         $('#editForm').appendChild(el('div',{ class:'banner info', style:'margin-top:12px',
@@ -702,7 +705,8 @@ $('#editSel').addEventListener('change', function(){
         var fields = {};
         Object.keys(state.editInputs).forEach(function(k){ fields[k] = state.editInputs[k].value; });
         api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ action:'updateProperty', waveId: state.waveId, propertyId: id, fields: fields }) })
+          body: JSON.stringify({ action:'updateProperty', waveId: state.waveId, propertyId: id,
+                                 fields: fields, note: state.editNote ? state.editNote.value : '' }) })
           .then(function(r){
             var box = $('#editMsg'); box.innerHTML='';
             if (!r.changed) {
@@ -710,13 +714,21 @@ $('#editSel').addEventListener('change', function(){
               return;
             }
             box.appendChild(el('div',{ class:'banner good',
-              text:'Saved ' + r.changed + ' change' + (r.changed===1?'':'s') + '.' }));
+              text:'Saved ' + r.changed + ' change' + (r.changed===1?'':'s') + '.' +
+                   (r.confirmationKept ? ' ' + (r.confirmedBy || 'Their') +
+                     '’s confirmation was kept.' : '') }));
             box.appendChild(el('div',{ class:'mini', style:'margin-bottom:10px',
               text: r.changes.map(function(c){
                 return c.label + ': ' + (c.from||'(blank)') + ' -> ' + (c.to||'(blank)'); }).join('  ·  ') }));
             if (r.movedRegional) {
               box.appendChild(el('div',{ class:'banner warn',
                 text:'This property now belongs to ' + r.movedRegional + ' and has moved to their list.' }));
+            }
+            // Clearing a required value un-completes a confirmed property, which
+            // is a bigger consequence than the edit itself.
+            if (r.droppedOutOfComplete) {
+              box.appendChild(el('div',{ class:'banner err',
+                text:'A required field is now blank, so this property no longer counts as complete and is back on the Regional’s list.' }));
             }
             if ((r.stillNeededLabels||[]).length) {
               box.appendChild(el('div',{ class:'banner info',
@@ -734,6 +746,22 @@ $('#editSel').addEventListener('change', function(){
       $('#editActions').appendChild(el('button',{ class:'btn ghost', text:'Cancel', onclick:function(){
         $('#editSel').value=''; $('#editForm').innerHTML=''; $('#editActions').innerHTML=''; $('#editMsg').innerHTML='';
       }}));
+
+      // Still the right tool when the Regional should look at it again rather
+      // than have the answer changed underneath them.
+      if (p.verified) {
+        $('#editActions').appendChild(el('button',{ class:'btn ghost', text:'Unlock and send back instead',
+          onclick:function(ev){
+            if (!confirm('Unlock this property?\n\nIt loses ' + (p.verifiedBy || 'their') +
+                         '’s confirmation and returns to their list to be checked again.')) return;
+            var b=ev.currentTarget; b.disabled=true;
+            api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ action:'unlockProperty', waveId: state.waveId, propertyId: id }) })
+              .then(function(){ toast('Unlocked and sent back'); return loadDash(); })
+              .then(function(){ return loadEditList({ reselect:true }); })
+              .catch(function(e){ toast(e.message); b.disabled=false; });
+          }}));
+      }
     })
     .catch(function(e){
       $('#editMsg').appendChild(el('div',{ class:'banner err', text:e.message }));

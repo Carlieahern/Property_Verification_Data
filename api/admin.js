@@ -103,14 +103,11 @@ module.exports = async (req, res) => {
       const snap = await ref.get();
       if (!snap.exists) return json(res, 404, { error: 'Property not found.' });
 
+      // A confirmed property can be edited directly. The signature is kept: the
+      // admin is acting on what the property itself reported, so the person who
+      // confirmed it still stands behind the record. The override is recorded.
       const prop = snap.data();
-      if (prop.verified) {
-        return json(res, 409, {
-          error: 'That property has been confirmed by ' + (prop.verifiedBy || 'someone') +
-                 '. Unlock it first, then edit it.',
-          needsUnlock: true
-        });
-      }
+      const wasConfirmed = !!prop.verified;
 
       const before = Object.assign({}, prop.fields || {});
       const after = Object.assign({}, before);
@@ -142,7 +139,19 @@ module.exports = async (req, res) => {
 
       const rmSlug = slug(after.rmName || before.rmName || prop.rmSlug);
       const history = Array.isArray(prop.history) ? prop.history.slice(-49) : [];
-      history.push({ at: new Date().toISOString(), by: 'admin', action: 'admin_edit', changes });
+      history.push({
+        at: new Date().toISOString(),
+        by: 'admin',
+        action: wasConfirmed ? 'admin_override' : 'admin_edit',
+        note: body.note ? String(body.note).slice(0, 300) : '',
+        changes
+      });
+
+      // Clearing a required field on a confirmed property leaves it incomplete,
+      // which puts it back in front of the Regional. Say so rather than letting
+      // a portfolio quietly stop being finished.
+      const stillNeeded = missingFields(after);
+      const droppedOutOfComplete = wasConfirmed && stillNeeded.length > 0;
 
       await ref.set({
         fields: after, rmSlug, touched: true,
@@ -155,12 +164,15 @@ module.exports = async (req, res) => {
         await recomputeRegional(waveId, prop.rmSlug);
       }
       const regional = await recomputeRegional(waveId, rmSlug);
-      const stillNeeded = missingFields(after);
 
       return json(res, 200, {
         ok: true,
         changed: changes.length,
         changes,
+        wasConfirmed,
+        confirmationKept: wasConfirmed,
+        confirmedBy: wasConfirmed ? (prop.verifiedBy || '') : '',
+        droppedOutOfComplete,
         movedRegional: rmSlug !== prop.rmSlug ? after.rmName : null,
         stillNeededLabels: stillNeeded.map(k => (FIELDS.find(f => f.key === k) || {}).label || k),
         regional
