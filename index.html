@@ -110,6 +110,8 @@
   .vlabel{font-weight:600;font-size:13.5px;margin-bottom:7px;display:flex;gap:9px;
     align-items:baseline;justify-content:space-between}
   .vlabel .tick{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
+  .na-note{background:#f2f5f9;border:1px solid var(--line);border-left:4px solid #8fa3bd;
+    border-radius:7px;padding:10px 12px;margin:0 0 12px;font-size:13px;color:var(--muted)}
   .vnotice{background:var(--amber-soft);border:1px solid #f0dcb4;border-left:4px solid #d79a2b;
     border-radius:7px;padding:11px 13px;margin:0 0 11px;font-size:13.5px;line-height:1.55;
     color:#6b4708;font-weight:500}
@@ -349,8 +351,11 @@ function effective(fields, f){
   var v = fields[f.key];
   return isBlank(v) ? '' : String(v).trim();
 }
+// hiddenIf takes one condition or a list; any match makes the field not apply.
 function isHidden(fields, f){
-  return !!(f.hiddenIf && String(fields[f.hiddenIf.field] || '').trim() === f.hiddenIf.equals);
+  if (!f.hiddenIf) return false;
+  var conds = Array.isArray(f.hiddenIf) ? f.hiddenIf : [f.hiddenIf];
+  return conds.some(function(c){ return String(fields[c.field] || '').trim() === c.equals; });
 }
 function isRequired(fields, f){
   if (isHidden(fields, f)) return false;
@@ -640,6 +645,32 @@ function buildBody(body, p){
     text: 'Check each line below one at a time. Confirm what is right, correct what is not, and fill in anything we do not have.' }));
 
   body.appendChild(referenceBlock(live));
+
+  // Answering Yes to HappyCo removes two questions from the list. Say so, or it
+  // looks like lines vanished and the count dropped for no reason.
+  if (String(live.happyCo || '').trim() === 'Yes') {
+    var na = FIELDS.filter(function(f){ return isHidden(live, f) && !f.locked && !f.system; })
+                   .map(function(f){ return f.label; });
+    var auto = FIELDS.filter(function(f){
+      return f.autoIf && !isHidden(live, f) &&
+             String(live[f.autoIf.field] || '').trim() === f.autoIf.equals;
+    });
+
+    if (na.length || auto.length) {
+      var note = el('div', { class:'na-note' });
+      note.appendChild(el('div', { style:'font-weight:600;color:var(--ink);margin-bottom:5px',
+        text:'This property uses HappyCo, so some lines are handled for you.' }));
+      if (auto.length) {
+        note.appendChild(el('div', { text: 'Set automatically: ' +
+          auto.map(function(f){ return f.label + ' = ' + f.autoIf.value; }).join('; ') + '.' }));
+      }
+      if (na.length) {
+        note.appendChild(el('div', { style: auto.length ? 'margin-top:3px' : '',
+          text: 'Does not apply: ' + na.join('; ') + '.' }));
+      }
+      body.appendChild(note);
+    }
+  }
 
   checkableFields(live).forEach(function(f){ body.appendChild(vrow(p, live, f)); });
 

@@ -100,8 +100,16 @@ Any day not mentioned is recorded as **Closed** — always shown back to the Reg
 confirm, so a wrong reading cannot slip through. The import result reports how many rows
 loaded into the picker and how many stayed as plain text.
 
-The HappyCo rule from the workbook is built in: when HappyCo is *Yes*, Answering Service
-Provider becomes `HappyCo` and Directions to Forward becomes `Auto Forwards`, both locked.
+The HappyCo rules are built in. When HappyCo is *Yes*:
+
+- Answering Service Provider becomes `HappyCo` and Directions to Forward becomes
+  `Auto Forwards`, both locked
+- Do residents call maintenance directly, its follow-up number, and Directions to
+  Remove the Forwarding stop applying: they leave the reviewer's list, are not
+  required, and export as `N/A`
+
+The reviewer is told which lines were set automatically and which no longer apply, so
+the list shrinking is explained rather than mysterious.
 
 ### Re-importing a wave
 

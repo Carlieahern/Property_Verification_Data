@@ -15,15 +15,18 @@ const FIELDS = [
   // the existing process; only what the reviewer reads on screen has changed.
   { key: 'phoneLandline',     sheetHeader: 'Phone Landline Number',                                  label: 'Direct Phone Number',      type: 'tel',      required: true,
     notice: 'Verifying this number is critically important for this exercise. If this number is not correct, the outgoing calls for the team will not work. Several properties believe a tracking number is their direct line to the property. To verify with complete accuracy, please pick up office phone (if your phones have more than one line, complete this process using Line 1), and make an outgoing call manually to your cellphone. The number that reflects is the direct line for the property.' },
-  { key: 'maintDirect',       sheetHeader: 'Do residents call mainteance directly for emergencies?', label: 'Do residents call maintenance directly for emergencies?', type: 'yesno', required: true },
+  // HappyCo handles emergency routing itself, so these do not apply when it is in use.
+  { key: 'maintDirect',       sheetHeader: 'Do residents call mainteance directly for emergencies?', label: 'Do residents call maintenance directly for emergencies?', type: 'yesno', required: true,
+    hiddenIf:   { field: 'happyCo', equals: 'Yes' } },
   { key: 'maintNumber',       sheetHeader: 'If yes, what is the number',                             label: 'If yes, what is that number?', type: 'tel',
     requiredIf: { field: 'maintDirect', equals: 'Yes' },
-    hiddenIf:   { field: 'maintDirect', equals: 'No' } },
+    hiddenIf:   [{ field: 'maintDirect', equals: 'No' }, { field: 'happyCo', equals: 'Yes' }] },
   { key: 'answeringService',  sheetHeader: 'Answering Service Provider',                             label: 'Answering Service Provider', type: 'text', required: true,
     autoIf: { field: 'happyCo', equals: 'Yes', value: 'HappyCo' } },
   { key: 'directionsForward', sheetHeader: 'Directions to Forward',                                  label: 'Directions to Forward',    type: 'textarea', required: true,
     autoIf: { field: 'happyCo', equals: 'Yes', value: 'Auto Forwards' } },
-  { key: 'directionsRemove',  sheetHeader: 'Directions to remove the forwarding',                    label: 'Directions to Remove the Forwarding', type: 'textarea', required: true },
+  { key: 'directionsRemove',  sheetHeader: 'Directions to remove the forwarding',                    label: 'Directions to Remove the Forwarding', type: 'textarea', required: true,
+    hiddenIf:   { field: 'happyCo', equals: 'Yes' } },
   // Built with the day/time picker; the flat text value is what lands back in Excel.
   { key: 'officeHours',       sheetHeader: 'Office Hours',                                           label: 'Office Hours',             type: 'hours',    required: true,
     structKey: 'officeHoursStruct' },
@@ -311,8 +314,11 @@ function effectiveValue(fields, field) {
   return isBlank(v) ? '' : String(v).trim();
 }
 
+// hiddenIf takes one condition or a list; any match makes the field not apply.
 function isHidden(fields, f) {
-  return !!(f.hiddenIf && String(fields[f.hiddenIf.field] || '').trim() === f.hiddenIf.equals);
+  if (!f.hiddenIf) return false;
+  const conds = Array.isArray(f.hiddenIf) ? f.hiddenIf : [f.hiddenIf];
+  return conds.some(c => String(fields[c.field] || '').trim() === c.equals);
 }
 
 function isRequired(fields, f) {

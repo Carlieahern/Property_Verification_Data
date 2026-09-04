@@ -1,5 +1,5 @@
 const { propsCol } = require('./_lib/firebase');
-const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText } = require('./_lib/schema');
+const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText, isHidden } = require('./_lib/schema');
 const { json, readBody, isAdmin } = require('./_lib/util');
 const { recomputeRegional } = require('./_lib/status');
 
@@ -48,9 +48,11 @@ module.exports = async (req, res) => {
       if (!f.autoIf) continue;
       if (String(after[f.autoIf.field] || '').trim() === f.autoIf.equals) after[f.key] = f.autoIf.value;
     }
-    // Clear the emergency number if they switched that answer to No.
+    // Drop anything the current answers make inapplicable -- the emergency number
+    // once residents do not call maintenance directly, and the maintenance and
+    // un-forwarding questions once HappyCo is in use.
     for (const f of FIELDS) {
-      if (f.hiddenIf && String(after[f.hiddenIf.field] || '').trim() === f.hiddenIf.equals) after[f.key] = '';
+      if (isHidden(after, f)) after[f.key] = '';
     }
     // Keep the flat Office Hours text in step with the day/time picker.
     after.officeHours = officeHoursText(after);

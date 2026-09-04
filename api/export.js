@@ -1,6 +1,6 @@
 const ExcelJS = require('exceljs');
 const { waveDoc, propsCol, regCol } = require('./_lib/firebase');
-const { FIELDS, computeStatus, missingFields, BY_KEY } = require('./_lib/schema');
+const { FIELDS, computeStatus, missingFields, BY_KEY, isHidden } = require('./_lib/schema');
 const { json, isAdmin, slug } = require('./_lib/util');
 
 const STATUS_TEXT = {
@@ -46,7 +46,9 @@ module.exports = async (req, res) => {
       const miss = missingFields(f).map(k => (BY_KEY[k] || {}).label || k);
       const lastAction = (p.history || []).slice().reverse().find(h => h.action === 'confirmed' || h.action === 'corrected');
       ws.addRow(
-        FIELDS.map(fd => f[fd.key] == null ? '' : String(f[fd.key]))
+        // "N/A" rather than a blank cell, so a question the answers made
+        // inapplicable is not mistaken for one nobody got round to.
+        FIELDS.map(fd => isHidden(f, fd) ? 'N/A' : (f[fd.key] == null ? '' : String(f[fd.key])))
           .concat([
             STATUS_TEXT[st] || st,
             miss.join('; '),
