@@ -101,6 +101,9 @@
   .vlabel{font-weight:600;font-size:13.5px;margin-bottom:7px;display:flex;gap:9px;
     align-items:baseline;justify-content:space-between}
   .vlabel .tick{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
+  .vnotice{background:var(--amber-soft);border:1px solid #f0dcb4;border-left:4px solid #d79a2b;
+    border-radius:7px;padding:11px 13px;margin:0 0 11px;font-size:13.5px;line-height:1.55;
+    color:#6b4708;font-weight:500}
   .vvalue{font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px}
   .vvalue.none{color:var(--red);font-weight:600;font-size:13.5px}
   .vactions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -682,6 +685,10 @@ function vrow(p, live, f){
       text: st === 'confirmed' ? '✓ Confirmed correct' : (wasBlank ? '✓ Added' : '✓ Updated') }));
   }
   row.appendChild(lab);
+
+  // Shown in every state, including after the line is ticked, so the instruction
+  // cannot be dismissed by confirming the line without following it.
+  if (f.notice) row.appendChild(el('div', { class:'vnotice', text: f.notice }));
 
   if (st === 'idle' || st === 'confirmed') {
     row.appendChild(el('div', { class:'vvalue', text: value || '—' }));

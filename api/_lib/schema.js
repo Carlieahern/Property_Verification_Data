@@ -11,7 +11,10 @@ const FIELDS = [
   { key: 'transitionDate',    sheetHeader: 'Transition Date',                                        label: 'Moving to CRMiQ on',       type: 'date',     locked: true },
   { key: 'revenueManagement', sheetHeader: 'Revenue Management',                                     label: 'Revenue Management',       type: 'yesno',    required: true },
   { key: 'happyCo',           sheetHeader: 'Does the property use HappyCo?',                         label: 'Does the property use HappyCo?', type: 'yesno', required: true },
-  { key: 'phoneLandline',     sheetHeader: 'Phone Landline Number',                                  label: 'Phone Landline Number',    type: 'tel',      required: true },
+  // sheetHeader keeps the workbook's original wording so exports still drop into
+  // the existing process; only what the reviewer reads on screen has changed.
+  { key: 'phoneLandline',     sheetHeader: 'Phone Landline Number',                                  label: 'Direct Phone Number',      type: 'tel',      required: true,
+    notice: 'Verifying this number is critically important for this exercise. If this number is not correct, the outgoing calls for the team will not work. Several properties believe their direct line is actually a tracking number. To verify with complete accuracy, please pick up office phone (if your phones have more than one line, complete this process using Line 1), and make an outgoing call manually to your cellphone. The number that reflects is the direct line for the property.' },
   { key: 'maintDirect',       sheetHeader: 'Do residents call mainteance directly for emergencies?', label: 'Do residents call maintenance directly for emergencies?', type: 'yesno', required: true },
   { key: 'maintNumber',       sheetHeader: 'If yes, what is the number',                             label: 'If yes, what is that number?', type: 'tel',
     requiredIf: { field: 'maintDirect', equals: 'Yes' },
