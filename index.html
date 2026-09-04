@@ -147,6 +147,11 @@
   .checkline{font-size:13.5px;color:var(--muted);margin:14px 0 10px;font-weight:600}
   .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
   .meta{font-size:12.5px;color:var(--muted);margin-top:12px}
+  .backlink{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1.5px solid var(--line);
+    border-radius:8px;padding:9px 14px;margin-bottom:12px;font:inherit;font-weight:600;font-size:14px;
+    color:var(--navy-2);cursor:pointer}
+  .backlink:hover{background:#eef3f9;border-color:#a9cdec}
+  .backlink span{font-size:16px;line-height:1}
   .share-note{margin-top:16px;font-size:13px;color:var(--muted);font-weight:600}
   .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
   .share input{font-size:13px;background:#f7f9fc}
@@ -188,13 +193,15 @@
   </div>
 
   <div id="portfolio" class="hidden">
+    <button type="button" class="backlink" id="backBtn">
+      <span aria-hidden="true">←</span> Not you? Pick a different name
+    </button>
     <div class="panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div>
           <h2 id="rmTitle"></h2>
           <p class="hint" id="rmSubtitle" style="margin-bottom:0"></p>
         </div>
-        <button class="btn ghost sm" id="backBtn">Change name</button>
       </div>
       <div class="progress"><span id="progBar" style="width:0%"></span></div>
       <div class="prog-label" id="progLabel"></div>
@@ -480,6 +487,14 @@ function fatal(e){
 
 function setUrl(url){ try { history.replaceState(null, '', url); } catch(e){} }
 
+// Opening a portfolio adds a history entry, so the phone's own back button
+// returns to the name list instead of leaving the site.
+var pushedPortfolio = false;
+function pushUrl(url){
+  try { history.pushState(null, '', url); pushedPortfolio = true; }
+  catch(e){ setUrl(url); }
+}
+
 function currentQuery(rmSlug){
   var q = [];
   if (state.waveId) q.push('wave=' + encodeURIComponent(state.waveId));
@@ -491,10 +506,29 @@ function showPicker(){
   state.rmSlug = null;
   $('#portfolio').classList.add('hidden');
   $('#pickPanel').classList.remove('hidden');
+  // Clear the selection, or picking the same wrong name again would do nothing.
+  var sel = $('#rmSel');
+  if (sel) sel.value = '';
   setUrl(location.pathname + currentQuery(null));
+  window.scrollTo({ top:0, behavior:'smooth' });
 }
 
-function openPortfolio(rmSlug){
+// Unwind the pushed entry where there is one, so in-app back and the phone's
+// back button leave the same history behind.
+function goBack(){
+  if (pushedPortfolio) history.back();
+  else showPicker();
+}
+
+window.addEventListener('popstate', function(){
+  var params = new URLSearchParams(location.search);
+  var rm = params.get('rm');
+  if (rm) { openPortfolio(rm, { fromHistory: true }); }
+  else { pushedPortfolio = false; showPicker(); }
+});
+
+function openPortfolio(rmSlug, opts){
+  opts = opts || {};
   state.rmSlug = rmSlug;
   drafts = {}; rows = {};
   var url = '/api/portfolio?rm=' + encodeURIComponent(rmSlug) +
@@ -505,7 +539,8 @@ function openPortfolio(rmSlug){
     state.waves = d.waves || state.waves;
     $('#pickPanel').classList.add('hidden');
     $('#portfolio').classList.remove('hidden');
-    setUrl(location.pathname + currentQuery(rmSlug));
+    // Restoring from a back/forward press must not stack another entry.
+    (opts.fromHistory ? setUrl : pushUrl)(location.pathname + currentQuery(rmSlug));
     $('#shareUrl').value = location.origin + location.pathname + currentQuery(rmSlug);
     render();
     window.scrollTo({ top:0, behavior:'smooth' });
@@ -1004,7 +1039,7 @@ function recountRegional(){
 }
 
 // ---------- wiring ----------
-$('#backBtn').addEventListener('click', function(){ showPicker(); });
+$('#backBtn').addEventListener('click', function(){ goBack(); });
 $('#copyBtn').addEventListener('click', function(){
   var f = $('#shareUrl');
   f.select();
