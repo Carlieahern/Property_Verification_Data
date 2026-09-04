@@ -14,7 +14,7 @@ const FIELDS = [
   // sheetHeader keeps the workbook's original wording so exports still drop into
   // the existing process; only what the reviewer reads on screen has changed.
   { key: 'phoneLandline',     sheetHeader: 'Phone Landline Number',                                  label: 'Direct Phone Number',      type: 'tel',      required: true,
-    notice: 'Verifying this number is critically important for this exercise. If this number is not correct, the outgoing calls for the team will not work. Several properties believe their direct line is actually a tracking number. To verify with complete accuracy, please pick up office phone (if your phones have more than one line, complete this process using Line 1), and make an outgoing call manually to your cellphone. The number that reflects is the direct line for the property.' },
+    notice: 'Verifying this number is critically important for this exercise. If this number is not correct, the outgoing calls for the team will not work. Several properties believe a tracking number is their direct line to the property. To verify with complete accuracy, please pick up office phone (if your phones have more than one line, complete this process using Line 1), and make an outgoing call manually to your cellphone. The number that reflects is the direct line for the property.' },
   { key: 'maintDirect',       sheetHeader: 'Do residents call mainteance directly for emergencies?', label: 'Do residents call maintenance directly for emergencies?', type: 'yesno', required: true },
   { key: 'maintNumber',       sheetHeader: 'If yes, what is the number',                             label: 'If yes, what is that number?', type: 'tel',
     requiredIf: { field: 'maintDirect', equals: 'Yes' },
