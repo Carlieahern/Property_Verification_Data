@@ -115,7 +115,20 @@
   .vnotice{background:var(--amber-soft);border:1px solid #f0dcb4;border-left:4px solid #d79a2b;
     border-radius:7px;padding:11px 13px;margin:0 0 11px;font-size:13.5px;line-height:1.55;
     color:#6b4708;font-weight:500}
-  .vvalue{font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px}
+  /* the answer is the thing being checked, so it outweighs its own label */
+  .vvalue{font-size:16.5px;font-weight:600;line-height:1.45;color:var(--ink);
+    white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:11px;
+    background:#f7f9fc;border:1px solid #e4e9f0;border-radius:7px;padding:9px 12px}
+  .hourslist{margin-bottom:11px;border:1px solid #e4e9f0;border-radius:7px;overflow:hidden;background:#f7f9fc}
+  .hline{display:flex;gap:14px;align-items:baseline;padding:7px 12px;border-bottom:1px solid #e8edf4}
+  .hline:last-child{border-bottom:0}
+  .hline .hd{flex:0 0 82px;font-weight:700;font-size:13px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.4px}
+  .hline .ht{font-size:16px;font-weight:600;color:var(--ink)}
+  .fact dd .vvalue,.fact dd .hourslist{margin-bottom:0;background:none;border:0;padding:0;font-size:14px}
+  .fact dd .hline{padding:2px 0;border-bottom:0}
+  .fact dd .hline .hd{flex:0 0 70px;font-size:12px}
+  .fact dd .hline .ht{font-size:14px;font-weight:600}
   .vvalue.none{color:var(--red);font-weight:600;font-size:13.5px}
   .vactions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .note{font-size:12.5px;color:var(--muted);margin-top:6px}
@@ -664,10 +677,9 @@ function buildBody(body, p){
     var dl = el('div', { class:'facts' });
     FIELDS.forEach(function(f){
       if (f.locked || f.system || isHidden(p.fields, f)) return;
-      dl.appendChild(el('div', { class:'fact' }, [
-        el('dt', { text: f.label }),
-        el('dd', { text: effective(p.fields, f) || '—' })
-      ]));
+      var dd = el('dd');
+      dd.appendChild(valueNode(f, effective(p.fields, f)));
+      dl.appendChild(el('div', { class:'fact' }, [ el('dt', { text: f.label }), dd ]));
     });
     body.appendChild(dl);
     body.appendChild(el('div', { class:'banner lock', text:'This property is locked because it has been confirmed.' }));
@@ -758,6 +770,36 @@ function buildBody(body, p){
 }
 
 // One verifiable line.
+// Office hours are stored and exported as one line, but a run-together sentence
+// is hard to check a day at a time, so they are shown stacked.
+function hoursRows(text){
+  return String(text || '').split(/\s*,\s*/).map(function(s){ return s.trim(); }).filter(Boolean)
+    .map(function(seg){
+      var m = seg.match(/^(\S+)\s+(.*)$/);
+      return m ? { day: m[1], time: m[2] } : { day: seg, time: '' };
+    });
+}
+
+// One place that decides how a confirmed value is displayed.
+function valueNode(f, value){
+  if (!value) return el('div', { class:'vvalue', text:'—' });
+
+  if (f.key === 'officeHours') {
+    var rows = hoursRows(value);
+    if (rows.length) {
+      var box = el('div', { class:'hourslist' });
+      rows.forEach(function(r){
+        box.appendChild(el('div', { class:'hline' }, [
+          el('span', { class:'hd', text: r.day }),
+          el('span', { class:'ht', text: r.time || '' })
+        ]));
+      });
+      return box;
+    }
+  }
+  return el('div', { class:'vvalue', text: value });
+}
+
 function vrow(p, live, f){
   var st = rowState(p, f);
   var settled = rowSettled(p, live, f);
@@ -778,7 +820,7 @@ function vrow(p, live, f){
   if (f.notice) row.appendChild(el('div', { class:'vnotice', text: f.notice }));
 
   if (st === 'idle' || st === 'confirmed') {
-    row.appendChild(el('div', { class:'vvalue', text: value || '—' }));
+    row.appendChild(valueNode(f, value));
     var acts = el('div', { class:'vactions' });
     if (st === 'idle') {
       acts.appendChild(el('button', { class:'btn ok tiny', type:'button', text:'Correct', onclick: function(){
