@@ -73,12 +73,25 @@ CM/SM Name
 **Optional** — `Transition Date` per property. Anything without one inherits the wave's.
 
 **Office hours** can arrive either way, and both load into the day/time picker so the
-Regional verifies real hours rather than a sentence:
+Regional verifies real hours rather than a sentence.
 
-- one `Office Hours` cell — `Mon-Fri 9am-6pm, Sat 10-4, Sun Closed`
-  (also understands `Weekdays`, `Daily`, `Monday-Friday`, 24-hour times, `8:30-5:30`)
-- or per-day columns — `Monday Hours` … `Sunday Hours` (`9:00 AM-6:00 PM` or `Closed`),
-  or `Monday Open` + `Monday Close` pairs
+The short form is the one to type:
+
+```
+M-F: 9-6, Sa: 10-4, Su: closed
+M-F: 830-530, Sa: closed, Su: closed
+```
+
+- **Days** — `M` `T` `W` `R` (or `Th`) `F` `Sa` `Su`, singly or as a range (`M-F`, `M-Th`).
+  `Weekdays`, `Weekend`, `Daily` and the long names all still work.
+- **Times** — a bare hour (`9`), or hour and minutes with the colon implied
+  (`830` = 8:30, `1730` = 17:30). `9:30`, `9am` and `09:00` are still accepted.
+- **Closed** — the word `closed`.
+- Opening times read as morning and closing times as afternoon, so `9-5` means
+  9:00 AM to 5:00 PM. Use 24-hour (`1730`) or `am`/`pm` to be explicit.
+
+Alternatively, per-day columns — `Monday Hours` … `Sunday Hours` holding `9-6` or
+`closed`, or `Monday Open` + `Monday Close` pairs holding one time each.
 
 Any day not mentioned is recorded as **Closed** — always shown back to the Regional to
 confirm, so a wrong reading cannot slip through. The import result reports how many rows

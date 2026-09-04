@@ -1,3 +1,4 @@
 Property Name,RM Name (RVP if no RM listed for the property),Property Code,Transition Date,Revenue Management,Does the property use HappyCo?,Phone Landline Number,Do residents call mainteance directly for emergencies?,If yes what is the number,Answering Service Provider,Directions to Forward,Directions to remove the forwarding,Monday Hours,Tuesday Hours,Wednesday Hours,Thursday Hours,Friday Hours,Saturday Hours,Sunday Hours,Completed by,CM/SM Name
-Example Apartments,Amber Davis,10101,2026-11-01,Yes,No,(404) 555-0100,Yes,(404) 555-0199,AnswerFirst,Dial *72 then the service number,Dial *73 from the office landline,9:00 AM-6:00 PM,9:00 AM-6:00 PM,9:00 AM-6:00 PM,9:00 AM-6:00 PM,9:00 AM-5:00 PM,10:00 AM-4:00 PM,Closed,,Dana Whitfield
-Example Two,Amber Davis,10102,,-,-,,-,,,,,,,,,,,,,
+Example Apartments,Amber Davis,10101,2026-11-01,Yes,No,(404) 555-0100,Yes,(404) 555-0199,AnswerFirst,Dial *72 then the service number,Dial *73 from the office landline,9-6,9-6,9-6,9-6,9-5,10-4,closed,,Dana Whitfield
+Example Half Hours,Amber Davis,10102,2026-11-01,Yes,Yes,(404) 555-0150,No,,,,Call the service and ask them to release the line,830-530,830-530,830-530,830-530,830-5,1000-1400,closed,,Marcus Reed
+Example Blank,Amber Davis,10103,,-,-,,-,,,,,,,,,,,,,

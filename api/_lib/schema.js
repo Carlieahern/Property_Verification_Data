@@ -126,15 +126,28 @@ const DAY_TOKENS = {
   sun: 'sun', sunday: 'sun', su: 'sun'
 };
 
+// Accepts 9, 9:30, 9am, 09:00 and the shorthand where the colon is implied:
+// 830 -> 8:30, 1730 -> 17:30. One or two digits is a whole hour.
 function parseTime(raw, role) {
-  let s = String(raw || '').trim().toLowerCase().replace(/\./g, '');
+  let s = String(raw || '').trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
   if (!s) return null;
   const mer = s.match(/(am|pm)$/);
   if (mer) s = s.slice(0, -2).trim();
-  const m = s.match(/^(\d{1,2})(?::(\d{2}))?$/);
-  if (!m) return null;
-  let h = parseInt(m[1], 10);
-  const min = m[2] || '00';
+
+  let h, min;
+  const withColon = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (withColon) {
+    h = parseInt(withColon[1], 10);
+    min = withColon[2];
+  } else {
+    const digits = s.match(/^(\d{1,4})$/);
+    if (!digits) return null;
+    const d = digits[1];
+    if (d.length <= 2) { h = parseInt(d, 10); min = '00'; }
+    else { h = parseInt(d.slice(0, d.length - 2), 10); min = d.slice(-2); }
+  }
+
+  if (parseInt(min, 10) > 59) return null;
   if (h > 24) return null;
   if (mer) {
     if (mer[1] === 'pm' && h < 12) h += 12;
