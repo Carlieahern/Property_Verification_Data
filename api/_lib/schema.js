@@ -23,10 +23,18 @@ const FIELDS = [
     hiddenIf:   [{ field: 'maintDirect', equals: 'No' }, { field: 'happyCo', equals: 'Yes' }] },
   { key: 'answeringService',  sheetHeader: 'Answering Service Provider',                             label: 'Answering Service Provider', type: 'text', required: true,
     autoIf: { field: 'happyCo', equals: 'Yes', value: 'HappyCo' } },
+  // The toggle sets this to "Auto Forwards", which in turn makes the removal
+  // directions inapplicable -- the same shape HappyCo produces automatically.
   { key: 'directionsForward', sheetHeader: 'Directions to Forward',                                  label: 'Directions to Forward',    type: 'textarea', required: true,
-    autoIf: { field: 'happyCo', equals: 'Yes', value: 'Auto Forwards' } },
+    autoIf: { field: 'happyCo', equals: 'Yes', value: 'Auto Forwards' },
+    toggle: { label: 'Auto-Forwards', value: 'Auto Forwards',
+              hint: 'Turn this off if the line has to be forwarded by hand.' } },
+  // Nothing to un-forward when the line forwards itself. Both conditions are kept:
+  // HappyCo implies Auto Forwards, but a draft can have HappyCo answered before
+  // the forwarding value has been written.
   { key: 'directionsRemove',  sheetHeader: 'Directions to remove the forwarding',                    label: 'Directions to Remove the Forwarding', type: 'textarea', required: true,
-    hiddenIf:   { field: 'happyCo', equals: 'Yes' } },
+    hiddenIf:   [{ field: 'happyCo', equals: 'Yes' },
+                 { field: 'directionsForward', equals: 'Auto Forwards' }] },
   // Built with the day/time picker; the flat text value is what lands back in Excel.
   { key: 'officeHours',       sheetHeader: 'Office Hours',                                           label: 'Office Hours',             type: 'hours',    required: true,
     structKey: 'officeHoursStruct' },

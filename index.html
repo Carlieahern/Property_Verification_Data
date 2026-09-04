@@ -120,6 +120,14 @@
   .vactions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .note{font-size:12.5px;color:var(--muted);margin-top:6px}
 
+  .toggle{display:inline-flex;align-items:center;gap:9px;background:#fff;border:1.5px solid var(--line);
+    border-radius:8px;padding:9px 15px 9px 11px;font:inherit;font-weight:600;font-size:14px;
+    color:var(--ink);cursor:pointer}
+  .toggle:hover{background:#f2f5f9}
+  .toggle .box{width:19px;height:19px;border:1.5px solid #b6c0cf;border-radius:5px;background:#fff;
+    display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;color:#fff}
+  .toggle.on{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+  .toggle.on .box{background:var(--green);border-color:var(--green)}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .seg button{background:#fff;border:0;padding:9px 20px;font:inherit;font-weight:600;cursor:pointer;color:var(--muted)}
   .seg button + button{border-left:1px solid var(--line)}
@@ -821,10 +829,39 @@ function control(p, live, f){
     return seg;
   }
   if (f.type === 'textarea') {
+    var toggleWrap = el('div');
+
+    // An on/off switch whose "on" state is simply the field holding a fixed
+    // value, so nothing extra has to be stored, saved or exported.
+    if (f.toggle) {
+      var on = String(live[f.key] || '').trim() === f.toggle.value;
+      var tg = el('button', { class:'toggle' + (on ? ' on' : ''), type:'button',
+        'aria-pressed': on ? 'true' : 'false',
+        onclick: function(){
+          if (String(live[f.key] || '').trim() === f.toggle.value) {
+            live[f.key] = live['__prev_' + f.key] || '';   // restore what was typed before
+          } else {
+            var cur = String(live[f.key] || '').trim();
+            if (cur && cur !== f.toggle.value) live['__prev_' + f.key] = cur;
+            live[f.key] = f.toggle.value;
+          }
+          render();
+        }});
+      tg.appendChild(el('span', { class:'box', 'aria-hidden':'true', text: on ? '✓' : '' }));
+      tg.appendChild(el('span', { text: f.toggle.label }));
+      toggleWrap.appendChild(tg);
+
+      if (on) {
+        if (f.toggle.hint) toggleWrap.appendChild(el('div', { class:'note', text: f.toggle.hint }));
+        return toggleWrap;   // no free-text box while the switch is on
+      }
+    }
+
     var ta = el('textarea', { id:'f_' + p.id + '_' + f.key, placeholder: f.placeholder || '' });
     ta.value = live[f.key] || '';
     ta.addEventListener('input', function(){ live[f.key] = ta.value; });
     ta.addEventListener('blur', function(){ render(); });
+    if (f.toggle) { ta.style.marginTop = '9px'; toggleWrap.appendChild(ta); return toggleWrap; }
     return ta;
   }
   var inp = el('input', { type: f.type === 'tel' ? 'tel' : 'text',
