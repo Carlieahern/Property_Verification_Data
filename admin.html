@@ -122,6 +122,17 @@
     <div id="dash"></div>
 
     <div class="panel">
+      <h2>Add a single property</h2>
+      <p class="hint">For the odd property that turns up after the import. It joins the wave selected above and appears in that Regional's list straight away.</p>
+      <div id="addForm"></div>
+      <div class="inline" style="margin-top:4px">
+        <button class="btn" id="addBtn">Add property</button>
+        <button class="btn ghost" id="addClearBtn">Clear</button>
+      </div>
+      <div id="addMsg" style="margin-top:12px"></div>
+    </div>
+
+    <div class="panel">
       <h2>Start a new wave</h2>
       <p class="hint">Upload the same spreadsheet layout you use today. Headers are matched by name, and any dropdown left as <code>-</code> is treated as blank so the Regional has to answer it.</p>
       <div class="grid g2">
@@ -182,7 +193,7 @@
 "use strict";
 
 var adminKey = '';
-var state = { waves:[], waveId:null, dash:null, parsedRows:null };
+var state = { waves:[], waveId:null, dash:null, parsedRows:null, fields:[], addInputs:{} };
 
 var $ = function(s){ return document.querySelector(s); };
 function el(t,a,k){
@@ -246,7 +257,17 @@ if(adminKey){
 }
 
 // ---------- waves ----------
+// Field definitions come from the server so the add form always matches the
+// questions the reviewer is actually asked.
+function loadSchema(){
+  if (state.fields.length) return Promise.resolve();
+  return fetch('/api/schema').then(function(r){ return r.json(); }).then(function(d){
+    state.fields = d.fields || [];
+  }).catch(function(){ state.fields = []; });
+}
+
 function loadWaves(){
+  return loadSchema().then(function(){
   return fetch('/api/waves').then(function(r){ return r.json(); }).then(function(d){
     state.waves = d.waves || [];
     var sel = $('#waveSel');
@@ -265,6 +286,7 @@ function loadWaves(){
     sel.onchange = function(){ state.waveId = sel.value; loadDash(); };
     return loadDash();
   });
+  });
 }
 
 function loadDash(){
@@ -272,6 +294,7 @@ function loadDash(){
   return api('/api/admin?action=dashboard&wave='+encodeURIComponent(state.waveId)).then(function(d){
     state.dash = d;
     renderDash();
+    renderAddForm();   // the Regional list depends on the wave that is loaded
   }).catch(function(e){ toast(e.message); throw e; });
 }
 
@@ -507,6 +530,115 @@ function renderDash(){
   dz.appendChild(det);
   root.appendChild(dz);
 }
+
+// ---------- add one property ----------
+// Built from the live field definitions, so it cannot drift from what the
+// reviewer is asked to confirm.
+function renderAddForm(){
+  var box = $('#addForm');
+  box.innerHTML = '';
+  state.addInputs = {};
+  if (!state.fields.length) { box.appendChild(el('p',{class:'mini',text:'Loading fields…'})); return; }
+
+  function field(f, opts){
+    opts = opts || {};
+    var wrap = el('div', { class:'row' });
+    wrap.appendChild(el('label', { class:'fl', text: f.label + (opts.required ? ' *' : '') }));
+    var input;
+    if (f.type === 'yesno') {
+      input = el('select');
+      [['','— not answered —'],['Yes','Yes'],['No','No']].forEach(function(o){
+        input.appendChild(el('option',{ value:o[0], text:o[1] }));
+      });
+    } else if (f.type === 'textarea') {
+      input = el('textarea', { rows:'2' });
+    } else if (f.type === 'date') {
+      input = el('input', { type:'date' });
+    } else if (f.type === 'hours') {
+      input = el('input', { type:'text', placeholder:'M-F: 9-6, Sa: 10-4, Su: closed' });
+    } else {
+      input = el('input', { type:'text', placeholder: opts.placeholder || '' });
+    }
+    state.addInputs[f.key] = input;
+    wrap.appendChild(input);
+    if (opts.hint) wrap.appendChild(el('div',{ class:'mini', style:'margin-top:4px', text:opts.hint }));
+    return wrap;
+  }
+
+  var byKey = {};
+  state.fields.forEach(function(f){ byKey[f.key] = f; });
+
+  // Identity first -- everything else is optional and can be left for the Regional.
+  var g = el('div',{ class:'grid g3' });
+  g.appendChild(field(byKey.propertyName, { required:true }));
+  g.appendChild(field(byKey.propertyCode, { placeholder:'e.g. 11203' }));
+  g.appendChild(field(byKey.rmName, { required:true,
+    hint:'Must match the Regional exactly, or they get a separate entry.' }));
+  box.appendChild(g);
+
+  // Offer the Regionals already in this wave, to avoid a typo splitting a portfolio.
+  var known = ((state.dash && state.dash.regionals) || []).map(function(r){ return r.rmName; });
+  if (known.length) {
+    var pick = el('select', { style:'max-width:360px' });
+    pick.appendChild(el('option',{ value:'', text:'— copy an existing Regional —' }));
+    known.forEach(function(n){ pick.appendChild(el('option',{ value:n, text:n })); });
+    pick.addEventListener('change', function(){
+      if (pick.value) state.addInputs.rmName.value = pick.value;
+    });
+    box.appendChild(el('div',{ class:'row' },[
+      el('label',{ class:'fl', text:'Or pick a Regional already in this wave' }), pick ]));
+  }
+
+  if (byKey.transitionDate) {
+    box.appendChild(el('div',{ class:'grid g3' },[
+      field(byKey.transitionDate, { hint:'Leave blank to use the wave’s date.' }) ]));
+  }
+
+  var det = el('details', { style:'margin-top:6px' });
+  det.appendChild(el('summary',{ text:'Fill in anything you already know (optional)' }));
+  det.appendChild(el('p',{ class:'mini',
+    text:'Anything left blank becomes a required entry for the Regional. Anything filled in becomes something they confirm or correct.' }));
+  var og = el('div',{ class:'grid g2', style:'margin-top:10px' });
+  state.fields.forEach(function(f){
+    if (f.locked || f.system) return;
+    og.appendChild(field(f));
+  });
+  det.appendChild(og);
+  box.appendChild(det);
+}
+
+$('#addClearBtn').addEventListener('click', function(){ renderAddForm(); $('#addMsg').innerHTML=''; });
+
+$('#addBtn').addEventListener('click', function(ev){
+  if (!state.waveId) return toast('Pick a wave first.');
+  var fields = {};
+  Object.keys(state.addInputs).forEach(function(k){ fields[k] = state.addInputs[k].value; });
+  if (!String(fields.propertyName || '').trim()) return toast('Property Name is required.');
+  if (!String(fields.rmName || '').trim()) return toast('Regional Manager is required.');
+
+  var b = ev.currentTarget; b.disabled = true; b.textContent = 'Adding…';
+  api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'addProperty', waveId: state.waveId, fields: fields }) })
+    .then(function(r){
+      var box = $('#addMsg'); box.innerHTML = '';
+      box.appendChild(el('div',{ class:'banner good',
+        text:'Added "'+r.propertyName+'" to '+r.rmName+'’s list.' }));
+      if ((r.stillNeededLabels||[]).length) {
+        box.appendChild(el('div',{ class:'banner info',
+          text:'They will be asked to fill in: '+r.stillNeededLabels.join('; ')+'.' }));
+      } else {
+        box.appendChild(el('div',{ class:'banner info',
+          text:'Nothing is blank, so they only have to confirm it.' }));
+      }
+      renderAddForm();
+      return loadWaves();
+    })
+    .catch(function(e){
+      $('#addMsg').innerHTML = '';
+      $('#addMsg').appendChild(el('div',{ class:'banner err', text:e.message }));
+    })
+    .then(function(){ b.disabled=false; b.textContent='Add property'; });
+});
 
 // ---------- import ----------
 $('#file').addEventListener('change', function(ev){

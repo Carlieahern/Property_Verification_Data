@@ -1,6 +1,10 @@
 const { waveDoc, propsCol, regCol, getDb } = require('./_lib/firebase');
-const { json, readBody, requireAdmin } = require('./_lib/util');
+const { json, readBody, requireAdmin, slug } = require('./_lib/util');
 const { recomputeWave, recomputeRegional, baseUrl } = require('./_lib/status');
+const { FIELDS, EXTRA_KEYS, isBlank, parseHoursText, formatHours,
+        missingFields, computeStatus } = require('./_lib/schema');
+
+const WRITABLE = FIELDS.filter(f => !f.system).map(f => f.key).concat(EXTRA_KEYS);
 
 async function deleteAll(collectionRef) {
   const db = getDb();
@@ -97,6 +101,75 @@ module.exports = async (req, res) => {
       return json(res, 200, {
         ok: true,
         reopened: (prop.fields || {}).propertyName || body.propertyId,
+        regional
+      });
+    }
+
+    // Add one property by hand, for the odd site that turns up after the import.
+    // Deliberately mirrors what the importer builds, so a hand-added property and
+    // an imported one are indistinguishable afterwards.
+    if (action === 'addProperty') {
+      if (!waveId) return json(res, 400, { error: 'wave is required.' });
+      const wSnap = await waveDoc(waveId).get();
+      if (!wSnap.exists) return json(res, 404, { error: 'Wave not found.' });
+
+      const incoming = (body.fields && typeof body.fields === 'object') ? body.fields : {};
+      const fields = {};
+      for (const key of WRITABLE) {
+        const v = incoming[key];
+        fields[key] = isBlank(v) ? '' : String(v).trim();   // "-" counts as blank
+      }
+      fields.completedBy = '';
+
+      if (!fields.propertyName) return json(res, 400, { error: 'Property Name is required.' });
+      if (!fields.rmName) return json(res, 400, { error: 'Regional Manager is required.' });
+
+      // Accept the same office-hours shorthand the importer takes.
+      if (fields.officeHours && !fields.officeHoursStruct) {
+        const parsed = parseHoursText(fields.officeHours);
+        if (parsed) {
+          fields.officeHoursStruct = JSON.stringify(parsed);
+          fields.officeHours = formatHours(parsed);
+        }
+      }
+
+      const rmSlug = slug(fields.rmName);
+      const propId = slug(`${fields.propertyCode || ''}-${fields.propertyName}`);
+      const ref = propsCol(waveId).doc(propId);
+      const existing = await ref.get();
+      if (existing.exists) {
+        return json(res, 409, {
+          error: `"${fields.propertyName}" is already in this wave. Reopen it from the list below if it needs changing.`
+        });
+      }
+
+      await ref.set({
+        waveId, rmSlug, fields,
+        verified: false, touched: false,
+        importedAt: new Date().toISOString(),
+        addedByAdmin: true,
+        history: []
+      });
+      await regCol(waveId).doc(rmSlug).set(
+        { rmSlug, rmName: fields.rmName }, { merge: true });
+
+      await waveDoc(waveId).set({
+        propertyCount: (await propsCol(waveId).get()).size,
+        regionalCount: (await regCol(waveId).get()).size,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      const regional = await recomputeRegional(waveId, rmSlug);
+      const stillNeeded = missingFields(fields);
+
+      return json(res, 200, {
+        ok: true,
+        propertyId: propId,
+        propertyName: fields.propertyName,
+        rmName: fields.rmName,
+        status: computeStatus({ fields, verified: false, touched: false }),
+        stillNeeded,
+        stillNeededLabels: stillNeeded.map(k => (FIELDS.find(f => f.key === k) || {}).label || k),
         regional
       });
     }

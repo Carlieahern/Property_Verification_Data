@@ -41,6 +41,20 @@ properties are left, and which ones. Two buttons:
 - **Copy names** — a semicolon-separated list for an email To: line
 - **Copy names + properties** — the full breakdown, ready to paste into Teams or Outlook
 
+### Adding a property without importing
+
+`/admin` -> **Add a single property**. Property Name and Regional Manager are the only
+required boxes; a picker offers the Regionals already in the wave so a typo cannot split
+someone's portfolio in two.
+
+Under *Fill in anything you already know* you can pre-answer any of the questions. What
+you leave blank becomes required entry for the Regional; what you fill in becomes
+something they confirm or correct. Office Hours accepts the same shorthand as the import.
+The result tells you exactly what they will be asked for.
+
+The property is built the same way the importer builds one, so it behaves identically
+afterwards -- including being skipped by a later *Add or update* import once confirmed.
+
 ### Corrections after confirmation
 
 Confirming locks a property and the reviewer is told to message you. To action it:
