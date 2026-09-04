@@ -80,10 +80,13 @@ The short form is the one to type:
 ```
 M-F: 9-6, Sa: 10-4, Su: closed
 M-F: 830-530, Sa: closed, Su: closed
+M: 9-8 T: 9-6 W: 9-8 TH: 9-6 F: 9-6 Sat: 10-5 Sun: 1-5
 ```
 
+- **Separators are optional.** Entries can be separated by commas, semicolons, new
+  lines, or nothing but a space — a day label followed by a colon starts a new entry.
 - **Days** — `M` `T` `W` `R` (or `Th`) `F` `Sa` `Su`, singly or as a range (`M-F`, `M-Th`).
-  `Weekdays`, `Weekend`, `Daily` and the long names all still work.
+  `Weekdays`, `Weekend`, `Daily` and the long names all still work. Case is ignored.
 - **Times** — a bare hour (`9`), or hour and minutes with the colon implied
   (`830` = 8:30, `1730` = 17:30). `9:30`, `9am` and `09:00` are still accepted.
 - **Closed** — the word `closed`.

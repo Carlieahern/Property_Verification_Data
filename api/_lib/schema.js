@@ -152,8 +152,12 @@ function parseTime(raw, role) {
   if (mer) {
     if (mer[1] === 'pm' && h < 12) h += 12;
     if (mer[1] === 'am' && h === 12) h = 0;
-  } else if (h < 12 && role === 'close' && h >= 1 && h <= 8) {
+  } else if (role === 'close' && h >= 1 && h <= 8) {
     // No am/pm given: a closing time of 1-8 means the afternoon.
+    h += 12;
+  } else if (role === 'open' && h >= 1 && h <= 5) {
+    // Likewise an opening time of 1-5, which is how afternoon-only days
+    // (typically Sunday, "1-5") get written.
     h += 12;
   }
   if (h > 23) h = h % 24;
@@ -166,8 +170,20 @@ function parseRange(text) {
   const parts = s.split(/\s*(?:-|–|—|to|till|until|thru)\s*/i).filter(Boolean);
   if (parts.length < 2) return null;
   const open = parseTime(parts[0], 'open');
-  const close = parseTime(parts[1], 'close');
+  let close = parseTime(parts[1], 'close');
   if (!open || !close) return null;
+
+  // Last resort for something like "9-9": if the closing time still lands on or
+  // before the opening time and the writer gave no am/pm, read it as the evening.
+  const closeExplicit = /(am|pm)\s*$/i.test(parts[1]) || parts[1].indexOf(':') >= 0 ||
+                        /^\s*\d{3,4}\s*$/.test(parts[1]);
+  const mins = (t) => parseInt(t.slice(0, 2), 10) * 60 + parseInt(t.slice(3), 10);
+  if (!closeExplicit && mins(close) <= mins(open)) {
+    const ch = parseInt(close.slice(0, 2), 10);
+    if (ch + 12 <= 23) close = String(ch + 12).padStart(2, '0') + close.slice(2);
+  }
+  if (mins(close) <= mins(open)) return null;
+
   return { closed: false, open: open, close: close };
 }
 
@@ -199,7 +215,22 @@ function parseHoursText(text) {
   const raw = String(text || '').trim();
   if (!raw || raw === '-') return null;
 
-  const segments = raw.split(/\s*[;\n\r]\s*|\s*,\s*(?=[A-Za-z])/).map(s => s.trim()).filter(Boolean);
+  // "M: 9-8 T: 9-6 Sat: 10-5" -- entries run together on one line with nothing
+  // but a space between them. Break before any day label that carries a colon;
+  // requiring the colon is what keeps this from splitting "Mon-Fri 9am-6pm".
+  const DAY_WORD = '(?:weekdays?|weekends?|everyday|daily|mondays?|tuesdays?|wednesdays?|' +
+                   'thursdays?|fridays?|saturdays?|sundays?|mon|tues|tue|weds|wed|thurs|thur|' +
+                   'thu|fri|sat|sun|th|sa|su|[mtwrf])';
+  const runOn = new RegExp(
+    '\\s+(?=' + DAY_WORD + '(?:\\s*[-–—]\\s*' + DAY_WORD + ')?\\s*:)', 'ig');
+  const prepared = raw.replace(runOn, ';');
+
+  // Trailing punctuation is stripped after splitting: when entries are already
+  // comma-separated, the break lands after the comma and would otherwise leave
+  // it stuck to the end of the previous time ("9-6,").
+  const segments = prepared.split(/\s*[;\n\r]\s*|\s*,\s*(?=[A-Za-z])/)
+    .map(s => s.trim().replace(/^[,;]+|[,;]+$/g, '').trim())
+    .filter(Boolean);
   const days = {};
   let matchedAny = false;
 
