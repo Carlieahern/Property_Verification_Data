@@ -124,6 +124,7 @@
   .hrow .hday{font-weight:600;font-size:13.5px}
   .hrow .times{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
   .hrow .times input[type=time]{width:128px;padding:7px 9px}
+  .hrow .times select.timesel{width:132px;padding:7px 9px}
   .hrow.closed .times{opacity:.4}
   .hours-preview{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
   .hours-preview b{color:var(--ink);font-weight:600}
@@ -756,6 +757,47 @@ function control(p, live, f){
   return inp;
 }
 
+// Half-hour slots, 12:00 AM through 11:30 PM.
+var TIME_SLOTS = (function(){
+  var out = [];
+  for (var m = 0; m < 24 * 60; m += 30) {
+    var h = Math.floor(m / 60), mm = m % 60;
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    out.push({
+      value: String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0'),
+      label: h12 + ':' + String(mm).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM')
+    });
+  }
+  return out;
+})();
+
+function slotLabel(hhmm){
+  var m = String(hhmm || '').match(/^(\d{2}):(\d{2})$/);
+  if (!m) return hhmm || '';
+  var h = parseInt(m[1], 10), h12 = h % 12; if (h12 === 0) h12 = 12;
+  return h12 + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+
+// A dropdown rather than a free time field, so every value is a real half-hour.
+// A time already on file that is not on the half hour keeps its own option, so
+// importing 8:45 cannot be silently rounded by opening the picker.
+function timeSelect(current, ariaLabel, onPick){
+  var sel = el('select', { class:'timesel', 'aria-label': ariaLabel });
+  sel.appendChild(el('option', { value:'', text:'--' }));
+  var known = false;
+  TIME_SLOTS.forEach(function(s){
+    if (s.value === current) known = true;
+    sel.appendChild(el('option', { value:s.value, text:s.label }));
+  });
+  if (current && !known) {
+    sel.appendChild(el('option', { value:current, text: slotLabel(current),
+      title:'Already on file, not on the half hour' }));
+  }
+  sel.value = current || '';
+  sel.addEventListener('change', function(){ onPick(sel.value); });
+  return sel;
+}
+
 function hoursControl(p, live){
   var struct = parseHours(live.officeHoursStruct) ||
                { mode:'grouped', weekdays:blankDay(), saturday:blankDay(), sunday:blankDay() };
@@ -795,12 +837,14 @@ function hoursControl(p, live){
     row.appendChild(oc);
 
     var times = el('div', { class:'times' });
-    var oi = el('input', { type:'time', 'aria-label': label + ' opens' });
-    oi.value = v.open || ''; oi.disabled = !!v.closed;
-    oi.addEventListener('change', function(){ var c = get(); set({ closed:c.closed, open:oi.value, close:c.close }); commit(); });
-    var ci = el('input', { type:'time', 'aria-label': label + ' closes' });
-    ci.value = v.close || ''; ci.disabled = !!v.closed;
-    ci.addEventListener('change', function(){ var c = get(); set({ closed:c.closed, open:c.open, close:ci.value }); commit(); });
+    var oi = timeSelect(v.open, label + ' opens', function(val){
+      var c = get(); set({ closed:c.closed, open:val, close:c.close }); commit();
+    });
+    oi.disabled = !!v.closed;
+    var ci = timeSelect(v.close, label + ' closes', function(val){
+      var c = get(); set({ closed:c.closed, open:c.open, close:val }); commit();
+    });
+    ci.disabled = !!v.closed;
     times.appendChild(oi);
     times.appendChild(el('span', { class:'dash', text:'to' }));
     times.appendChild(ci);
