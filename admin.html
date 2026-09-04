@@ -47,11 +47,17 @@
   tr:hover td{background:#fafbfd}
   td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   .tbl-scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px}
-  .bar{width:96px;height:7px;background:#e6eaf0;border-radius:99px;overflow:hidden;display:inline-block;vertical-align:middle}
+  .bar{width:96px;height:10px;background:#dde3ec;border:1px solid #c8d0dc;border-radius:99px;
+    overflow:hidden;display:inline-block;vertical-align:middle}
   .bar>span{display:block;height:100%;background:var(--green)}
-  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.3px}
-  .pill.yes{background:var(--green-soft);color:var(--green)}
-  .pill.no{background:var(--amber-soft);color:var(--amber)}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;
+    text-transform:uppercase;letter-spacing:.3px;border:1.5px solid transparent}
+  .pill.yes{background:var(--green);color:#fff;border-color:var(--green)}
+  .pill.no{background:var(--amber-soft);color:var(--amber);border-color:#dda93f}
+  /* a finished Regional should be obvious when scanning the table */
+  tr.complete td{background:#f4fbf8}
+  tr.complete td:first-child{box-shadow:inset 4px 0 0 var(--green)}
+  tr.outstanding td:first-child{box-shadow:inset 4px 0 0 #d79a2b}
   .banner{border-radius:8px;padding:11px 13px;font-size:13.5px;margin-bottom:14px}
   .banner.good{background:var(--green-soft);color:var(--green);border:1px solid #bfe4d4}
   .banner.warn{background:var(--amber-soft);color:var(--amber);border:1px solid #f0dcb4}
@@ -422,7 +428,7 @@ function renderDash(){
   var tbody = el('tbody');
   regs.forEach(function(r){
     var pct = r.total ? Math.round((r.verified||0)/r.total*100) : 0;
-    var tr = el('tr');
+    var tr = el('tr',{ class: r.complete ? 'complete' : 'outstanding' });
     tr.appendChild(el('td',{},[
       el('div',{text:r.rmName,style:'font-weight:600'}),
       el('div',{class:'mini',text:(r.total||0)+(r.total===1?' property':' properties')})

@@ -53,10 +53,11 @@
 
   .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;
     letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
-  .pill.verified{background:var(--green-soft);color:var(--green)}
-  .pill.ready{background:var(--blue-soft);color:var(--navy-2)}
-  .pill.in_progress{background:var(--amber-soft);color:var(--amber)}
-  .pill.needs_input{background:var(--red-soft);color:var(--red)}
+  .pill{border:1.5px solid transparent}
+  .pill.verified{background:var(--green);color:#fff;border-color:var(--green)}
+  .pill.ready{background:var(--blue-soft);color:var(--navy-2);border-color:#8fc0e8}
+  .pill.in_progress{background:var(--amber-soft);color:var(--amber);border-color:#dda93f}
+  .pill.needs_input{background:var(--red-soft);color:var(--red);border-color:#e0938c}
 
   .wavehead{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;
     margin:26px 0 10px;padding-bottom:8px;border-bottom:2px solid var(--line)}
@@ -64,8 +65,13 @@
   .wavehead .dates{font-size:13px;color:var(--muted)}
   .wavehead .dates b{color:var(--ink)}
 
-  .prop{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
-  .prop.done{border-color:#bfe4d4}
+  .prop{background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);
+    margin-bottom:12px;overflow:hidden;border-left-width:6px;border-left-color:#c8d0dc}
+  .prop.st-verified{border-color:#9ed4bd;border-left-color:var(--green);background:#fbfefc}
+  .prop.st-ready{border-color:#a9cdec;border-left-color:var(--blue)}
+  .prop.st-in_progress{border-color:#e8cf9a;border-left-color:#d79a2b}
+  .prop.st-needs_input{border-color:#e6b3ad;border-left-color:var(--red)}
+  .prop.done{border-color:#9ed4bd}
   .prop-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:none;border:0;
     width:100%;text-align:left;font:inherit;color:inherit}
   .prop-head:hover{background:#f7f9fc}
@@ -93,10 +99,13 @@
   .fact dd{margin:0;overflow-wrap:anywhere}
 
   /* one verifiable line */
-  .vrow{border:1px solid var(--line);border-radius:8px;padding:12px 13px;margin-bottom:10px;background:#fff}
-  .vrow.settled{border-color:#bfe4d4;background:#fbfefc}
-  .vrow.todo{border-color:#e8d3a8;background:#fffdf8}
-  .vrow.blank{border-color:#e8a9a4;background:#fffafa}
+  .vrow{border:1.5px solid var(--line);border-radius:8px;padding:12px 13px;margin-bottom:10px;
+    background:#fff;border-left-width:5px;border-left-color:#c8d0dc}
+  .vrow.settled{border-color:#9ed4bd;border-left-color:var(--green);background:#f4fbf8}
+  .vrow.todo{border-color:#e8cf9a;border-left-color:#d79a2b;background:#fffcf3}
+  .vrow.blank{border-color:#e6b3ad;border-left-color:var(--red);background:#fff7f6}
+  .vlabel .tick{color:var(--green);background:var(--green-soft);border:1px solid #9ed4bd;
+    border-radius:99px;padding:2px 8px}
   .vrow.completedby{border-style:dashed}
   .vlabel{font-weight:600;font-size:13.5px;margin-bottom:7px;display:flex;gap:9px;
     align-items:baseline;justify-content:space-between}
@@ -556,7 +565,10 @@ var STATUS_LABEL = { verified:'Confirmed', ready:'Ready to confirm', in_progress
 
 function propCard(p){
   var open = !!p._open;
-  var card = el('div', { class:'prop' + (open ? ' open' : '') + (p.status === 'verified' ? ' done' : '') });
+  // Status drives a colour band down the left of the card, so the list reads at
+  // a glance without opening anything.
+  var card = el('div', { class:'prop st-' + p.status + (open ? ' open' : '') +
+                                (p.status === 'verified' ? ' done' : '') });
 
   var sub = 'Code ' + (p.fields.propertyCode || '—');
   if (p.status !== 'verified') {
