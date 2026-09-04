@@ -133,6 +133,18 @@
     </div>
 
     <div class="panel">
+      <h2>Edit a property</h2>
+      <p class="hint">Change details on a property that is already in the wave. Confirmed properties are locked — unlock one below first if it needs changing.</p>
+      <div class="row" style="max-width:560px">
+        <label class="fl" for="editSel">Property</label>
+        <select id="editSel"><option value="">Choose a property…</option></select>
+      </div>
+      <div id="editForm"></div>
+      <div class="inline" id="editActions" style="margin-top:4px"></div>
+      <div id="editMsg" style="margin-top:12px"></div>
+    </div>
+
+    <div class="panel">
       <h2>Start a new wave</h2>
       <p class="hint">Upload the same spreadsheet layout you use today. Headers are matched by name, and any dropdown left as <code>-</code> is treated as blank so the Regional has to answer it.</p>
       <div class="grid g2">
@@ -193,7 +205,7 @@
 "use strict";
 
 var adminKey = '';
-var state = { waves:[], waveId:null, dash:null, parsedRows:null, fields:[], addInputs:{} };
+var state = { waves:[], waveId:null, dash:null, parsedRows:null, fields:[], addInputs:{}, editInputs:{}, editList:[] };
 
 var $ = function(s){ return document.querySelector(s); };
 function el(t,a,k){
@@ -283,8 +295,8 @@ function loadWaves(){
     });
     if(!state.waveId || !state.waves.some(function(w){return w.id===state.waveId;})) state.waveId = state.waves[0].id;
     sel.value = state.waveId;
-    sel.onchange = function(){ state.waveId = sel.value; loadDash(); };
-    return loadDash();
+    sel.onchange = function(){ state.waveId = sel.value; loadDash().then(loadEditList); };
+    return loadDash().then(loadEditList);
   });
   });
 }
@@ -534,10 +546,12 @@ function renderDash(){
 // ---------- add one property ----------
 // Built from the live field definitions, so it cannot drift from what the
 // reviewer is asked to confirm.
-function renderAddForm(){
-  var box = $('#addForm');
+// Shared by the add and edit forms so the two cannot describe the property
+// differently. `values` pre-fills; `expand` opens the optional section.
+function propertyForm(box, inputs, values, expand){
   box.innerHTML = '';
-  state.addInputs = {};
+  Object.keys(inputs).forEach(function(k){ delete inputs[k]; });
+  values = values || {};
   if (!state.fields.length) { box.appendChild(el('p',{class:'mini',text:'Loading fields…'})); return; }
 
   function field(f, opts){
@@ -559,7 +573,8 @@ function renderAddForm(){
     } else {
       input = el('input', { type:'text', placeholder: opts.placeholder || '' });
     }
-    state.addInputs[f.key] = input;
+    if (values[f.key] !== undefined && values[f.key] !== null) input.value = values[f.key];
+    inputs[f.key] = input;
     wrap.appendChild(input);
     if (opts.hint) wrap.appendChild(el('div',{ class:'mini', style:'margin-top:4px', text:opts.hint }));
     return wrap;
@@ -568,7 +583,6 @@ function renderAddForm(){
   var byKey = {};
   state.fields.forEach(function(f){ byKey[f.key] = f; });
 
-  // Identity first -- everything else is optional and can be left for the Regional.
   var g = el('div',{ class:'grid g3' });
   g.appendChild(field(byKey.propertyName, { required:true }));
   g.appendChild(field(byKey.propertyCode, { placeholder:'e.g. 11203' }));
@@ -576,15 +590,12 @@ function renderAddForm(){
     hint:'Must match the Regional exactly, or they get a separate entry.' }));
   box.appendChild(g);
 
-  // Offer the Regionals already in this wave, to avoid a typo splitting a portfolio.
   var known = ((state.dash && state.dash.regionals) || []).map(function(r){ return r.rmName; });
   if (known.length) {
     var pick = el('select', { style:'max-width:360px' });
     pick.appendChild(el('option',{ value:'', text:'— copy an existing Regional —' }));
     known.forEach(function(n){ pick.appendChild(el('option',{ value:n, text:n })); });
-    pick.addEventListener('change', function(){
-      if (pick.value) state.addInputs.rmName.value = pick.value;
-    });
+    pick.addEventListener('change', function(){ if (pick.value) inputs.rmName.value = pick.value; });
     box.appendChild(el('div',{ class:'row' },[
       el('label',{ class:'fl', text:'Or pick a Regional already in this wave' }), pick ]));
   }
@@ -595,7 +606,8 @@ function renderAddForm(){
   }
 
   var det = el('details', { style:'margin-top:6px' });
-  det.appendChild(el('summary',{ text:'Fill in anything you already know (optional)' }));
+  if (expand) det.open = true;
+  det.appendChild(el('summary',{ text: expand ? 'The answers themselves' : 'Fill in anything you already know (optional)' }));
   det.appendChild(el('p',{ class:'mini',
     text:'Anything left blank becomes a required entry for the Regional. Anything filled in becomes something they confirm or correct.' }));
   var og = el('div',{ class:'grid g2', style:'margin-top:10px' });
@@ -607,7 +619,126 @@ function renderAddForm(){
   box.appendChild(det);
 }
 
+function renderAddForm(){
+  propertyForm($('#addForm'), state.addInputs, {}, false);
+}
+
+
 $('#addClearBtn').addEventListener('click', function(){ renderAddForm(); $('#addMsg').innerHTML=''; });
+
+// ---------- edit an existing property ----------
+// keepMessage is set after a save, so refreshing the list does not wipe the
+// confirmation of what was just changed.
+function loadEditList(opts){
+  opts = opts || {};
+  var sel = $('#editSel');
+  var wasSelected = sel.value;
+  sel.innerHTML = '';
+  sel.appendChild(el('option',{ value:'', text:'Choose a property…' }));
+  $('#editForm').innerHTML = ''; $('#editActions').innerHTML = '';
+  if (!opts.keepMessage) $('#editMsg').innerHTML = '';
+  if (!state.waveId) return Promise.resolve();
+  return api('/api/admin?action=properties&wave='+encodeURIComponent(state.waveId))
+    .then(function(d){
+      state.editList = d.properties || [];
+      state.editList.forEach(function(p){
+        sel.appendChild(el('option',{ value:p.id,
+          text: p.rmName + ' — ' + p.propertyName + (p.propertyCode ? ' (' + p.propertyCode + ')' : '') +
+                (p.verified ? '  • confirmed' : '') }));
+      });
+      // Stay on the property being worked on, so a second change does not mean
+      // hunting for it in the list again.
+      if (opts.reselect && wasSelected &&
+          state.editList.some(function(p){ return p.id === wasSelected; })) {
+        sel.value = wasSelected;
+        // Reloading the form must not wipe the message describing what just saved.
+        state.keepEditMsg = !!opts.keepMessage;
+        sel.dispatchEvent(new Event('change'));
+        state.keepEditMsg = false;
+      }
+    }).catch(function(e){ toast(e.message); });
+}
+
+$('#editSel').addEventListener('change', function(){
+  var id = $('#editSel').value;
+  $('#editForm').innerHTML = ''; $('#editActions').innerHTML = '';
+  if (!state.keepEditMsg) $('#editMsg').innerHTML = '';
+  if (!id) return;
+
+  api('/api/admin', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'property', waveId: state.waveId, propertyId: id }) })
+    .then(function(p){
+      state.editInputs = state.editInputs || {};
+
+      if (p.verified) {
+        $('#editForm').appendChild(el('div',{ class:'banner warn',
+          text:'Confirmed by ' + (p.verifiedBy||'someone') +
+               (p.verifiedAt ? ' on ' + fmtDate(p.verifiedAt) : '') +
+               '. Unlock it before editing, so it goes back to them as unconfirmed.' }));
+        $('#editActions').appendChild(el('button',{ class:'btn', text:'Unlock this property', onclick:function(ev){
+          var b=ev.currentTarget; b.disabled=true;
+          api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ action:'unlockProperty', waveId: state.waveId, propertyId: id }) })
+            .then(function(){ toast('Unlocked'); return loadEditList().then(function(){
+              $('#editSel').value = id; $('#editSel').dispatchEvent(new Event('change')); }); })
+            .then(loadDash)
+            .catch(function(e){ toast(e.message); b.disabled=false; });
+        }}));
+        return;
+      }
+
+      propertyForm($('#editForm'), state.editInputs, p.fields, true);
+
+      if ((p.missing||[]).length) {
+        $('#editForm').appendChild(el('div',{ class:'banner info', style:'margin-top:12px',
+          text:'Still blank, so the Regional will be asked for: ' +
+               p.missing.map(function(k){
+                 var f = state.fields.filter(function(x){return x.key===k;})[0];
+                 return f ? f.label : k; }).join('; ') + '.' }));
+      }
+
+      $('#editActions').appendChild(el('button',{ class:'btn', text:'Save changes', onclick:function(ev){
+        var b=ev.currentTarget; b.disabled=true; b.textContent='Saving…';
+        var fields = {};
+        Object.keys(state.editInputs).forEach(function(k){ fields[k] = state.editInputs[k].value; });
+        api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ action:'updateProperty', waveId: state.waveId, propertyId: id, fields: fields }) })
+          .then(function(r){
+            var box = $('#editMsg'); box.innerHTML='';
+            if (!r.changed) {
+              box.appendChild(el('div',{ class:'banner info', text:'Nothing was different — no changes saved.' }));
+              return;
+            }
+            box.appendChild(el('div',{ class:'banner good',
+              text:'Saved ' + r.changed + ' change' + (r.changed===1?'':'s') + '.' }));
+            box.appendChild(el('div',{ class:'mini', style:'margin-bottom:10px',
+              text: r.changes.map(function(c){
+                return c.label + ': ' + (c.from||'(blank)') + ' -> ' + (c.to||'(blank)'); }).join('  ·  ') }));
+            if (r.movedRegional) {
+              box.appendChild(el('div',{ class:'banner warn',
+                text:'This property now belongs to ' + r.movedRegional + ' and has moved to their list.' }));
+            }
+            if ((r.stillNeededLabels||[]).length) {
+              box.appendChild(el('div',{ class:'banner info',
+                text:'Still blank for the Regional: ' + r.stillNeededLabels.join('; ') + '.' }));
+            }
+            return loadEditList({ keepMessage:true, reselect:true }).then(loadDash);
+          })
+          .catch(function(e){
+            $('#editMsg').innerHTML='';
+            $('#editMsg').appendChild(el('div',{ class:'banner err', text:e.message }));
+          })
+          .then(function(){ b.disabled=false; b.textContent='Save changes'; });
+      }}));
+
+      $('#editActions').appendChild(el('button',{ class:'btn ghost', text:'Cancel', onclick:function(){
+        $('#editSel').value=''; $('#editForm').innerHTML=''; $('#editActions').innerHTML=''; $('#editMsg').innerHTML='';
+      }}));
+    })
+    .catch(function(e){
+      $('#editMsg').appendChild(el('div',{ class:'banner err', text:e.message }));
+    });
+});
 
 $('#addBtn').addEventListener('click', function(ev){
   if (!state.waveId) return toast('Pick a wave first.');

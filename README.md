@@ -55,6 +55,20 @@ The result tells you exactly what they will be asked for.
 The property is built the same way the importer builds one, so it behaves identically
 afterwards -- including being skipped by a later *Add or update* import once confirmed.
 
+### Editing a property
+
+`/admin` -> **Edit a property** -> pick it from the list. The form loads with the current
+values; change anything and save. What you clear becomes required entry for the Regional
+again, and the result names exactly what changed.
+
+Confirmed properties are refused. A signature means somebody stood behind those values,
+so the panel offers **Unlock this property** instead: unlocking returns it to the
+Regional as unconfirmed, then it is editable. Every admin edit is recorded in the
+property's history and appears in the Change Log sheet of the export.
+
+Changing the Regional Manager moves the property to that person's list, and both
+portfolios are recounted.
+
 ### Corrections after confirmation
 
 Confirming locks a property and the reviewer is told to message you. To action it:

@@ -75,6 +75,98 @@ module.exports = async (req, res) => {
       return json(res, 200, { properties });
     }
 
+    // Full record for one property, so the admin edit form can be populated.
+    if (action === 'property') {
+      const propertyId = body.propertyId || (req.query && req.query.propertyId);
+      if (!waveId || !propertyId) return json(res, 400, { error: 'wave and propertyId are required.' });
+      const snap = await propsCol(waveId).doc(propertyId).get();
+      if (!snap.exists) return json(res, 404, { error: 'Property not found.' });
+      const p = snap.data();
+      return json(res, 200, {
+        id: propertyId,
+        fields: p.fields || {},
+        verified: !!p.verified,
+        verifiedBy: p.verifiedBy || '',
+        verifiedAt: p.verifiedAt || null,
+        missing: missingFields(p.fields || {}),
+        history: (p.history || []).slice(-10)
+      });
+    }
+
+    // Admin edit of an existing property. Confirmed properties are refused: a
+    // signature means someone stood behind those values, so it has to be
+    // reopened first rather than quietly rewritten underneath them.
+    if (action === 'updateProperty') {
+      const propertyId = body.propertyId;
+      if (!waveId || !propertyId) return json(res, 400, { error: 'wave and propertyId are required.' });
+      const ref = propsCol(waveId).doc(propertyId);
+      const snap = await ref.get();
+      if (!snap.exists) return json(res, 404, { error: 'Property not found.' });
+
+      const prop = snap.data();
+      if (prop.verified) {
+        return json(res, 409, {
+          error: 'That property has been confirmed by ' + (prop.verifiedBy || 'someone') +
+                 '. Unlock it first, then edit it.',
+          needsUnlock: true
+        });
+      }
+
+      const before = Object.assign({}, prop.fields || {});
+      const after = Object.assign({}, before);
+      const incoming = (body.fields && typeof body.fields === 'object') ? body.fields : {};
+
+      for (const key of WRITABLE) {
+        if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
+        const v = incoming[key];
+        after[key] = isBlank(v) ? '' : String(v).trim();
+      }
+
+      if (after.officeHours && after.officeHours !== before.officeHours) {
+        const parsed = parseHoursText(after.officeHours);
+        if (parsed) {
+          after.officeHoursStruct = JSON.stringify(parsed);
+          after.officeHours = formatHours(parsed);
+        }
+      }
+
+      const changes = [];
+      for (const key of WRITABLE) {
+        const a = before[key] == null ? '' : String(before[key]).trim();
+        const b = after[key] == null ? '' : String(after[key]).trim();
+        if (a !== b) {
+          changes.push({ key, label: (FIELDS.find(f => f.key === key) || {}).label || key, from: a, to: b });
+        }
+      }
+      if (!changes.length) return json(res, 200, { ok: true, changed: 0, message: 'Nothing was different.' });
+
+      const rmSlug = slug(after.rmName || before.rmName || prop.rmSlug);
+      const history = Array.isArray(prop.history) ? prop.history.slice(-49) : [];
+      history.push({ at: new Date().toISOString(), by: 'admin', action: 'admin_edit', changes });
+
+      await ref.set({
+        fields: after, rmSlug, touched: true,
+        updatedAt: new Date().toISOString(), history
+      }, { merge: true });
+
+      // A changed Regional moves the property between portfolios.
+      if (rmSlug !== prop.rmSlug) {
+        await regCol(waveId).doc(rmSlug).set({ rmSlug, rmName: after.rmName }, { merge: true });
+        await recomputeRegional(waveId, prop.rmSlug);
+      }
+      const regional = await recomputeRegional(waveId, rmSlug);
+      const stillNeeded = missingFields(after);
+
+      return json(res, 200, {
+        ok: true,
+        changed: changes.length,
+        changes,
+        movedRegional: rmSlug !== prop.rmSlug ? after.rmName : null,
+        stillNeededLabels: stillNeeded.map(k => (FIELDS.find(f => f.key === k) || {}).label || k),
+        regional
+      });
+    }
+
     if (action === 'unlockProperty') {
       if (!waveId || !body.propertyId) return json(res, 400, { error: 'wave and propertyId are required.' });
       const ref = propsCol(waveId).doc(body.propertyId);
