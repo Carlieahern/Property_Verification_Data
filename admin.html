@@ -559,10 +559,11 @@ function propertyForm(box, inputs, values, expand){
     var wrap = el('div', { class:'row' });
     wrap.appendChild(el('label', { class:'fl', text: f.label + (opts.required ? ' *' : '') }));
     var input;
-    if (f.type === 'yesno') {
+    if (f.type === 'yesno' || f.type === 'choice') {
       input = el('select');
-      [['','— not answered —'],['Yes','Yes'],['No','No']].forEach(function(o){
-        input.appendChild(el('option',{ value:o[0], text:o[1] }));
+      input.appendChild(el('option',{ value:'', text:'— not answered —' }));
+      (f.options || ['Yes','No']).forEach(function(o){
+        input.appendChild(el('option',{ value:o, text:o }));
       });
     } else if (f.type === 'textarea') {
       input = el('textarea', { rows:'2' });

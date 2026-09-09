@@ -141,9 +141,13 @@
     display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;color:#fff}
   .toggle.on{background:var(--green-soft);border-color:var(--green);color:var(--green)}
   .toggle.on .box{background:var(--green);border-color:var(--green)}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .seg button{background:#fff;border:0;padding:9px 20px;font:inherit;font-weight:600;cursor:pointer;color:var(--muted)}
+  /* wraps rather than overflowing when a choice has three options, or a long one */
+  .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;max-width:100%}
+  .seg button{background:#fff;border:0;padding:9px 20px;font:inherit;font-weight:600;cursor:pointer;
+    color:var(--muted);flex:0 1 auto}
   .seg button + button{border-left:1px solid var(--line)}
+  @media(max-width:520px){ .seg{width:100%} .seg button{flex:1 1 100%;border-left:0}
+    .seg button + button{border-top:1px solid var(--line)} }
   .seg button[aria-pressed=true]{background:var(--blue);color:#fff}
   .seg button:hover:not([aria-pressed=true]){background:#f2f5f9}
   .seg.sm button{padding:6px 13px;font-size:13px}
@@ -862,9 +866,9 @@ function vrow(p, live, f){
 function control(p, live, f){
   if (f.type === 'hours') return hoursControl(p, live);
 
-  if (f.type === 'yesno') {
+  if (f.type === 'yesno' || f.type === 'choice') {
     var seg = el('div', { class:'seg' });
-    ['Yes','No'].forEach(function(opt){
+    (f.options || ['Yes','No']).forEach(function(opt){
       var b = el('button', { type:'button', text:opt, onclick: function(){ live[f.key] = opt; render(); }});
       b.setAttribute('aria-pressed', String(live[f.key]).trim() === opt ? 'true' : 'false');
       seg.appendChild(b);

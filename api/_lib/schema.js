@@ -21,6 +21,15 @@ const FIELDS = [
   { key: 'maintNumber',       sheetHeader: 'If yes, what is the number',                             label: 'If yes, what is that number?', type: 'tel',
     requiredIf: { field: 'maintDirect', equals: 'Yes' },
     hiddenIf:   [{ field: 'maintDirect', equals: 'No' }, { field: 'happyCo', equals: 'Yes' }] },
+  // Courtesy officers are a separate arrangement from maintenance routing, so
+  // these are asked regardless of HappyCo. "No Courtesy Officer" is a real
+  // answer, not a non-answer, and completes the line on its own.
+  { key: 'courtesyDirect',    sheetHeader: 'Do residents call courtesy officers directly?',          label: 'Do residents call courtesy officers directly?', type: 'choice', required: true,
+    options: ['Yes', 'No', 'No Courtesy Officer'] },
+  { key: 'courtesyNumber',    sheetHeader: 'If yes, what is the courtesy officer number',            label: 'If yes, what is that number?', type: 'tel',
+    requiredIf: { field: 'courtesyDirect', equals: 'Yes' },
+    hiddenIf:   [{ field: 'courtesyDirect', equals: 'No' },
+                 { field: 'courtesyDirect', equals: 'No Courtesy Officer' }] },
   { key: 'answeringService',  sheetHeader: 'Answering Service Provider',                             label: 'Answering Service Provider', type: 'text', required: true,
     autoIf: { field: 'happyCo', equals: 'Yes', value: 'HappyCo' } },
   // The toggle sets this to "Auto Forwards", which in turn makes the removal

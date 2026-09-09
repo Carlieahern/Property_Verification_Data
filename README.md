@@ -102,7 +102,8 @@ confirm a dash.
 
 **Recognised columns** — Property Name · RM Name · Property Code · Revenue Management ·
 Does the property use HappyCo? · Phone Landline Number · Do residents call maintenance
-directly for emergencies? · If yes what is the number · Answering Service Provider ·
+directly for emergencies? · If yes what is the number · Do residents call courtesy officers
+directly? · If yes what is the courtesy officer number · Answering Service Provider ·
 Directions to Forward · Directions to remove the forwarding · Office Hours · Completed by ·
 CM/SM Name
 
