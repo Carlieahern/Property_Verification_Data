@@ -629,7 +629,8 @@ function propCard(p){
   // Status drives a colour band down the left of the card, so the list reads at
   // a glance without opening anything.
   var card = el('div', { class:'prop st-' + p.status + (open ? ' open' : '') +
-                                (p.status === 'verified' ? ' done' : '') });
+                                (p.status === 'verified' ? ' done' : ''),
+                         'data-pid': p.waveId + '|' + p.id });
 
   var sub = 'Code ' + (p.fields.propertyCode || '—');
   if (p.status !== 'verified') {
@@ -1082,7 +1083,9 @@ function submit(p, btn, verify){
     var wasOpen = p._open;
     if (idx >= 0) {
       state.props[idx] = Object.assign(d.property, {
-        _open: wasOpen, waveId: p.waveId, waveName: p.waveName
+        // Confirming finishes the property, so fold it away and leave the list
+        // showing what is still outstanding.
+        _open: verify ? false : wasOpen, waveId: p.waveId, waveName: p.waveName
       });
       // keep the inherited transition date visible after a save
       if (!state.props[idx].fields.transitionDate && p.fields.transitionDate) {
@@ -1094,6 +1097,20 @@ function submit(p, btn, verify){
 
     recountRegional();
     render();
+
+    // Collapsing a tall card pulls everything below it upwards, which is
+    // disorienting mid-list, so hold the collapsed card in view.
+    if (verify) {
+      var sel = '.prop[data-pid="' + (p.waveId + '|' + p.id).replace(/"/g, '\\"') + '"]';
+      var card = document.querySelector(sel);
+      if (card) {
+        var top = card.getBoundingClientRect().top;
+        if (top < 0 || top > window.innerHeight - 120) {
+          card.scrollIntoView({ block:'center', behavior:'smooth' });
+        }
+      }
+    }
+
     toast(verify ? 'Confirmed.' : 'Saved.');
     if (verify && state.regional.complete) toast('Portfolio complete — thank you!');
   }).catch(function(e){
