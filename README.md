@@ -57,6 +57,9 @@ afterwards -- including being skipped by a later *Add or update* import once con
 
 ### Editing a property
 
+Search by property name, property code, or Regional to narrow the list -- 183 properties
+is too many to scroll. A single match opens itself; Enter opens the first match.
+
 `/admin` -> **Edit a property** -> pick it from the list. The form loads with the current
 values; change anything and save. The result names exactly what changed, and what is now
 blank for the Regional.
