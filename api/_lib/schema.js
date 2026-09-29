@@ -164,25 +164,41 @@ function squash(v) {
   return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function withinOneEdit(a, b) {
-  if (a === b) return true;
-  if (Math.abs(a.length - b.length) > 1) return false;
-  let i = 0, j = 0, edits = 0;
-  while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) { i++; j++; continue; }
-    if (++edits > 1) return false;
-    if (a.length > b.length) i++;
-    else if (a.length < b.length) j++;
-    else { i++; j++; }
+// Full edit distance, so "hapy", "happi" and "hppy" register as near misses
+// rather than only single-character slips.
+function editDistance(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = [];
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1,
+                        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
   }
-  if (i < a.length || j < b.length) edits++;
-  return edits <= 1;
+  return prev[b.length];
 }
+
+function withinEdits(a, b, n) { return editDistance(a, b) <= n; }
+function withinOneEdit(a, b) { return withinEdits(a, b, 1); }
 
 function looksLikeHappyCo(value) {
   const s = squash(value);
   if (!s) return false;
-  return withinOneEdit(s, 'happyco');
+  // Mentions happy at all: "Happy", "Happy Co", "HappyCo Inc", "Happy Company".
+  if (s.indexOf('happy') >= 0) return true;
+  // Misspellings of the whole thing: "hapyco", "happico", "hppyco".
+  if (withinEdits(s, 'happyco', 2)) return true;
+  // The same, where a longer string merely starts with it.
+  if (s.length > 7 && withinEdits(s.slice(0, 7), 'happyco', 2)) return true;
+  // Misspellings of just the word happy: "hapy", "hppy", "happi".
+  if (withinEdits(s.slice(0, 5), 'happy', 1)) return true;
+  if (s.length >= 4 && withinEdits(s.slice(0, 4), 'hapy', 1)) return true;
+  return false;
 }
 
 // The answering service the reviewer actually named, following "Other" through
