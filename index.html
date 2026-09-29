@@ -124,6 +124,8 @@
   .staffin{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:6px;
     font:inherit;font-size:14px;background:#fff}
   .lockmark{font-size:12px;color:var(--muted)}
+  .blankstaff{color:#9aa5b5;font-style:italic;font-size:13px;
+    border-bottom:1px dashed #c8d0dc;padding-bottom:1px}
 
   /* stacked option list, for choices too long for one strip */
   .optlist{display:flex;flex-direction:column;gap:7px;max-width:460px}
@@ -766,9 +768,10 @@ function referenceBlock(p, fields, editable){
   var staff = FIELDS.filter(function(f){ return f.staff; });
   var editing = p && staffEdit[p.id];
 
+  // Every position is listed even when empty. A blank slot is the only thing
+  // that prompts anyone to fill it in, so hiding them hid the gap as well.
   staff.forEach(function(f){
     var v = fields[f.key];
-    if (isBlank(v) && !editing) return;          // nothing to show until they edit
     var dd = el('dd');
     if (editing && f.key !== owner) {
       var inp = el('input', { type:'text', class:'staffin', placeholder:'—' });
@@ -776,7 +779,9 @@ function referenceBlock(p, fields, editable){
       inp.addEventListener('input', function(){ fields[f.key] = inp.value; });
       dd.appendChild(inp);
     } else {
-      dd.appendChild(el('span', { text: isBlank(v) ? '—' : String(v) }));
+      dd.appendChild(isBlank(v)
+        ? el('span', { class:'blankstaff', text:'Not on file' })
+        : el('span', { text: String(v) }));
       if (editing && f.key === owner) {
         dd.appendChild(el('span', { class:'lockmark',
           text:' — this is the portfolio this property sits in, so it cannot be changed here' }));
