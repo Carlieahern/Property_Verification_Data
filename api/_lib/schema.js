@@ -523,8 +523,10 @@ function missingFields(fields) {
     if (f.locked || f.system || f.staff) continue;
     if (!isRequired(fields, f)) continue;
 
-    // A link that has to be opened is not answered until it has been.
-    if (f.type === 'confirm' && f.requireOpen &&
+    // A link that has to be opened is not answered until it has been -- but only
+    // when there is a link. With nothing on file there is nothing to open, and
+    // the reviewer supplies the value instead.
+    if (f.type === 'confirm' && f.requireOpen && !isBlank(fields[f.key]) &&
         String(fields[f.openedKey || (f.key + 'Opened')] || '').trim() !== 'Yes') {
       out.push(f.key);
       continue;

@@ -480,8 +480,9 @@ function missingOf(fields){
   return FIELDS.filter(function(f){
     if (f.locked || f.system || f.staff) return false;
     if (!isRequired(fields, f)) return false;
-    // A link that must be opened is not answered until it has been.
-    if (f.type === 'confirm' && f.requireOpen && !wasOpened(fields, f)) return true;
+    // A link that must be opened is not answered until it has been -- but only
+    // when there is a link. Nothing on file means nothing to open.
+    if (f.type === 'confirm' && f.requireOpen && !isBlank(fields[f.key]) && !wasOpened(fields, f)) return true;
     return isBlank(effective(fields, f));
   }).map(function(f){ return f.key; });
 }
