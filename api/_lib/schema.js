@@ -21,6 +21,9 @@ const FIELDS = [
   { key: 'rvp',                    sheetHeader: 'RVP Name',                      label: 'RVP',                      type: 'text', staff: true, ownerRank: 3 },
 
   // ---- the questions -----------------------------------------------------
+  { key: 'officeHours',       sheetHeader: 'Office Hours',                                           label: 'Office Hours',             type: 'hours',    required: true,
+    structKey: 'officeHoursStruct' },
+
   { key: 'revenueManagement', sheetHeader: 'Revenue Management',                                     label: 'Revenue Management',       type: 'yesno',    required: true },
   { key: 'affordable',        sheetHeader: 'Does the property have an affordable component?',        label: 'Does the property have an affordable component?', type: 'yesno', required: true },
 
@@ -42,9 +45,13 @@ const FIELDS = [
     type: 'textarea', required: true,
     autoIf: { field: 'happyCo', equals: 'Yes', value: 'Auto Forwards' },
     toggle: { label: 'Auto-Forwards', value: 'Auto Forwards',
-              hint: 'Turn this off if the line has to be forwarded by hand.' } },
+              hint: 'Turn this off if the line has to be forwarded by hand.' },
+    // Taking the forwarding off can be a different code or number entirely, so
+    // it is asked in the same line rather than folded into one answer.
+    groups: ['directionsRemove'] },
 
   { key: 'directionsRemove',  sheetHeader: 'Directions to remove the forwarding',                    label: 'Directions to Remove the Forwarding', type: 'textarea', required: true,
+    groupedUnder: 'directionsForward',
     hiddenIf:   [{ field: 'happyCo', equals: 'Yes' },
                  { field: 'directionsForward', equals: 'Auto Forwards' }] },
 
@@ -88,8 +95,6 @@ const FIELDS = [
     correctionKey: 'propertyEmailCorrected',
     answerKey: 'propertyEmailOk' },
 
-  { key: 'officeHours',       sheetHeader: 'Office Hours',                                           label: 'Office Hours',             type: 'hours',    required: true,
-    structKey: 'officeHoursStruct' },
 
   { key: 'completedBy',       sheetHeader: 'Completed by',                                           label: 'Completed by',             type: 'text',     system: true },
   { key: 'completedDate',     sheetHeader: 'Completed date',                                         label: 'Date',                     type: 'date',     system: true, autoToday: true }

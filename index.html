@@ -118,6 +118,8 @@
   /* nothing on file for this line */
   .vlabel .req{color:var(--red);font-weight:800;font-size:15px;cursor:help}
   .vhint{font-size:13px;color:var(--muted);margin:-3px 0 9px;line-height:1.5}
+  .grouplabel{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.4px;margin:2px 0 4px}
 
   /* reference details and the people attached to the property */
   .refactions{display:flex;gap:8px;margin:-6px 0 16px}
@@ -473,9 +475,22 @@ function isAuto(fields, f){
 function checkableFields(live){
   return FIELDS.filter(function(f){
     if (f.locked || f.system || f.staff) return false;
+    // Grouped fields are asked inside their parent's line, not as their own.
+    if (f.groupedUnder) return false;
     if (isHidden(live, f) || isAuto(live, f)) return false;
     return isRequired(live, f) || !isBlank(effective(live, f));
   });
+}
+
+// The fields a line actually asks for: itself, plus anything grouped under it
+// that still applies.
+function partsOf(live, f){
+  var parts = [f];
+  (f.groups || []).forEach(function(k){
+    var g = BY_KEY[k];
+    if (g && !isHidden(live, g) && !isAuto(live, g)) parts.push(g);
+  });
+  return parts;
 }
 function missingOf(fields){
   return FIELDS.filter(function(f){
@@ -500,7 +515,12 @@ function setRowState(p, f, v){ (rows[p.id] || (rows[p.id] = {}))[f.key] = v; }
 function rowSettled(p, live, f){
   var st = rowState(p, f);
   if (st === 'confirmed') return true;
-  if (st === 'editing') return !isBlank(effective(live, f)) || !isRequired(live, f);
+  if (st === 'editing') {
+    // A grouped line is only done when every box inside it is.
+    return partsOf(live, f).every(function(g){
+      return !isBlank(effective(live, g)) || !isRequired(live, g);
+    });
+  }
   return false;
 }
 function checkProgress(p, live){
@@ -978,7 +998,17 @@ function vrow(p, live, f){
   if (f.notice) row.appendChild(el('div', { class:'vnotice', text: f.notice }));
 
   if (st === 'idle' || st === 'confirmed') {
-    row.appendChild(valueNode(f, value));
+    var shown = partsOf(live, f);
+    if (shown.length > 1) {
+      // A grouped line shows each box's answer under its own heading, so
+      // confirming it is confirming both.
+      shown.forEach(function(g){
+        row.appendChild(el('div', { class:'grouplabel', text: g.label }));
+        row.appendChild(valueNode(g, effective(live, g)));
+      });
+    } else {
+      row.appendChild(valueNode(f, value));
+    }
     var acts = el('div', { class:'vactions' });
     if (st === 'idle') {
       acts.appendChild(el('button', { class:'btn ok tiny', type:'button', text:'Correct', onclick: function(){
@@ -1143,6 +1173,29 @@ function control(p, live, f){
     ta.value = live[f.key] || '';
     ta.addEventListener('input', function(){ live[f.key] = ta.value; });
     ta.addEventListener('blur', function(){ render(); });
+
+    // Anything grouped under this question is asked here, in the same line, so
+    // related directions are written together rather than pages apart.
+    var extras = (f.groups || []).map(function(k){ return BY_KEY[k]; })
+      .filter(function(g){ return g && !isHidden(live, g) && !isAuto(live, g); });
+
+    if (extras.length) {
+      var stack = el('div');
+      stack.appendChild(el('label', { class:'fl', text: f.label }));
+      ta.style.marginBottom = '2px';
+      stack.appendChild(ta);
+      extras.forEach(function(g){
+        stack.appendChild(el('label', { class:'fl', style:'margin-top:12px', text: g.label }));
+        var gta = el('textarea', { id:'f_' + p.id + '_' + g.key, placeholder: g.placeholder || '' });
+        gta.value = live[g.key] || '';
+        gta.addEventListener('input', function(){ live[g.key] = gta.value; });
+        gta.addEventListener('blur', function(){ render(); });
+        stack.appendChild(gta);
+      });
+      if (f.toggle) { toggleWrap.appendChild(stack); return toggleWrap; }
+      return stack;
+    }
+
     if (f.toggle) { ta.style.marginTop = '9px'; toggleWrap.appendChild(ta); return toggleWrap; }
     return ta;
   }
