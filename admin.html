@@ -187,6 +187,10 @@
           or <code>Monday Open</code> + <code>Monday Close</code> pairs.<br>
           Any day not mentioned is recorded as Closed, and the Regional still confirms it on screen.</p>
       </details>
+      <div class="inline" style="margin:-4px 0 16px">
+        <button class="btn ghost" id="templateBtn">Download a blank template</button>
+        <span class="mini">Every column the importer reads, with a guidance row telling you what each one does.</span>
+      </div>
       <div id="preview" class="hidden"></div>
       <div class="row" style="max-width:520px">
         <label class="fl" for="mode">If this wave name already exists</label>
@@ -547,6 +551,26 @@ function renderDash(){
   dz.appendChild(det);
   root.appendChild(dz);
 }
+
+$('#templateBtn').addEventListener('click', function(ev){
+  var b = ev.currentTarget, label = b.textContent;
+  b.disabled = true; b.textContent = 'Building…';
+  fetch('/api/template', { headers:{ 'x-admin-key': adminKey } })
+    .then(function(r){
+      if(!r.ok) return r.json().catch(function(){return{};}).then(function(j){
+        throw new Error(j.error || ('Could not build the template (' + r.status + ')'));
+      });
+      return r.blob().then(function(blob){
+        var url = URL.createObjectURL(blob);
+        var a = el('a', { href:url, download:'wave-import-template.xlsx' });
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        toast('Template downloaded');
+      });
+    })
+    .catch(function(e){ toast(e.message); })
+    .then(function(){ b.disabled=false; b.textContent=label; });
+});
 
 // ---------- add one property ----------
 // Built from the live field definitions, so it cannot drift from what the

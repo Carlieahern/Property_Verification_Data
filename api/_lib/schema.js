@@ -1,60 +1,203 @@
-// Single source of truth for the 14 Wave columns.
-// `sheetHeader` is the EXACT header text from Carlie's workbook (typo included) so
-// exports drop straight back into the existing process. `label` is what humans see.
+// Single source of truth for the wave columns.
+// `sheetHeader` is the header text the import and export use; `label` is what
+// humans read on screen. The two differ where the sheet's wording is historical.
 
 const FIELDS = [
   { key: 'propertyName',      sheetHeader: 'Property Name',                                          label: 'Property Name',            type: 'text',     locked: true },
+  // The name the portfolio is filed under. Resolved at import from the staff
+  // chain below, so it always holds whoever actually owns the property.
   { key: 'rmName',            sheetHeader: 'RM Name (RVP if no RM listed for the property)',         label: 'Regional Manager',         type: 'text',     locked: true },
   { key: 'propertyCode',      sheetHeader: 'Property Code',                                          label: 'Property Code',            type: 'text',     locked: true },
-  // When this property moves to CRMiQ. Informational, never verified. Falls back
-  // to the wave's transition date when the sheet does not carry a per-property one.
   { key: 'transitionDate',    sheetHeader: 'Transition Date',                                        label: 'Moving to CRMiQ on',       type: 'date',     locked: true },
+
+  // ---- site and regional staff -------------------------------------------
+  // Shown with the property details rather than as questions to verify, and
+  // editable behind the Edit button. Whichever one is currently acting as the
+  // owner is locked there, since changing it would move the property.
+  { key: 'communityManager',       sheetHeader: 'Community Manager Name',        label: 'Community Manager',        type: 'text', staff: true },
+  { key: 'seniorCommunityManager', sheetHeader: 'Senior Community Manager Name', label: 'Senior Community Manager', type: 'text', staff: true },
+  { key: 'regionalManager',        sheetHeader: 'Regional Manager',              label: 'Regional Manager',         type: 'text', staff: true, ownerRank: 1 },
+  { key: 'seniorRegionalManager',  sheetHeader: 'Senior Regional Manager',       label: 'Senior Regional Manager',  type: 'text', staff: true, ownerRank: 2 },
+  { key: 'rvp',                    sheetHeader: 'RVP Name',                      label: 'RVP',                      type: 'text', staff: true, ownerRank: 3 },
+
+  // ---- the questions -----------------------------------------------------
   { key: 'revenueManagement', sheetHeader: 'Revenue Management',                                     label: 'Revenue Management',       type: 'yesno',    required: true },
+  { key: 'affordable',        sheetHeader: 'Does the property have an affordable component?',        label: 'Does the property have an affordable component?', type: 'yesno', required: true },
+
   { key: 'happyCo',           sheetHeader: 'Does the property use HappyCo?',                         label: 'Does the property use HappyCo?', type: 'yesno', required: true },
-  // sheetHeader keeps the workbook's original wording so exports still drop into
-  // the existing process; only what the reviewer reads on screen has changed.
-  { key: 'phoneLandline',     sheetHeader: 'Phone Landline Number',                                  label: 'Direct Phone Number',      type: 'tel',      required: true,
-    notice: 'Verifying this number is critically important for this exercise. If this number is not correct, the outgoing calls for the team will not work. Several properties believe a tracking number is their direct line to the property. To verify with complete accuracy, please pick up office phone (if your phones have more than one line, complete this process using Line 1), and make an outgoing call manually to your cellphone. The number that reflects is the direct line for the property.' },
-  // HappyCo handles emergency routing itself, so these do not apply when it is in use.
-  { key: 'maintDirect',       sheetHeader: 'Do residents call mainteance directly for emergencies?', label: 'Do residents call maintenance directly for emergencies?', type: 'yesno', required: true,
-    hiddenIf:   { field: 'happyCo', equals: 'Yes' } },
-  { key: 'maintNumber',       sheetHeader: 'If yes, what is the number',                             label: 'If yes, what is that number?', type: 'tel',
-    requiredIf: { field: 'maintDirect', equals: 'Yes' },
-    hiddenIf:   [{ field: 'maintDirect', equals: 'No' }, { field: 'happyCo', equals: 'Yes' }] },
-  // Courtesy officers are a separate arrangement from maintenance routing, so
-  // these are asked regardless of HappyCo. "No Courtesy Officer" is a real
-  // answer, not a non-answer, and completes the line on its own.
-  { key: 'courtesyDirect',    sheetHeader: 'Do residents call courtesy officers directly?',          label: 'Do residents call courtesy officers directly?', type: 'choice', required: true,
-    options: ['Yes', 'No', 'No Courtesy Officer'] },
-  { key: 'courtesyNumber',    sheetHeader: 'If yes, what is the courtesy officer number',            label: 'If yes, what is that number?', type: 'tel',
-    requiredIf: { field: 'courtesyDirect', equals: 'Yes' },
-    hiddenIf:   [{ field: 'courtesyDirect', equals: 'No' },
-                 { field: 'courtesyDirect', equals: 'No Courtesy Officer' }] },
-  { key: 'answeringService',  sheetHeader: 'Answering Service Provider',                             label: 'Answering Service Provider', type: 'text', required: true,
+
+  // Answering service and forwarding sit directly under HappyCo, because HappyCo
+  // decides both of them.
+  { key: 'answeringService',  sheetHeader: 'Answering Service Provider',                             label: 'Answering Service Provider', type: 'choice', required: true,
+    options: ['SmartRent', 'Courtesy Connection', 'Apartment Lines', 'Active Answer',
+              'Corporate Answer', 'Audio Images', 'Smart Answer', 'RealPage',
+              'EliseAI', 'SitePlan', 'Other'],
+    allowOther: 'Other',
+    otherKey: 'answeringServiceOther',
     autoIf: { field: 'happyCo', equals: 'Yes', value: 'HappyCo' } },
-  // The toggle sets this to "Auto Forwards", which in turn makes the removal
-  // directions inapplicable -- the same shape HappyCo produces automatically.
-  { key: 'directionsForward', sheetHeader: 'Directions to Forward',                                  label: 'Directions to Forward',    type: 'textarea', required: true,
+
+  { key: 'directionsForward', sheetHeader: 'Directions to Forward',
+    label: 'Directions to forward phone lines',
+    hint: 'Select Auto-Forward below if phones automatically forward to voicemail for missed or after-hours calls.',
+    type: 'textarea', required: true,
     autoIf: { field: 'happyCo', equals: 'Yes', value: 'Auto Forwards' },
     toggle: { label: 'Auto-Forwards', value: 'Auto Forwards',
               hint: 'Turn this off if the line has to be forwarded by hand.' } },
-  // Nothing to un-forward when the line forwards itself. Both conditions are kept:
-  // HappyCo implies Auto Forwards, but a draft can have HappyCo answered before
-  // the forwarding value has been written.
+
   { key: 'directionsRemove',  sheetHeader: 'Directions to remove the forwarding',                    label: 'Directions to Remove the Forwarding', type: 'textarea', required: true,
     hiddenIf:   [{ field: 'happyCo', equals: 'Yes' },
                  { field: 'directionsForward', equals: 'Auto Forwards' }] },
-  // Built with the day/time picker; the flat text value is what lands back in Excel.
+
+  // Tiered, not a pick-list: Full Suite contains the leasing options, and
+  // Managed Services contains Full Suite. One answer only.
+  { key: 'eliseAI',           sheetHeader: 'Does the property use EliseAI?',                         label: 'Does the property use Elise AI?', type: 'choice', required: true,
+    options: ['No', 'Leasing Only', 'Leasing & Voice Only', 'Full Suite', 'Managed Services'],
+    optionNotes: { 'Full Suite': 'Leasing, Leasing & Voice, and Residents',
+                   'Managed Services': 'Includes everything in Full Suite' } },
+
+  { key: 'phoneLandline',     sheetHeader: 'Phone Landline Number',                                  label: 'Direct Phone Number',      type: 'tel',      required: true,
+    checkTracking: true,
+    notice: 'Verifying this number is critically important for this exercise. If this number is not correct, the outgoing calls for the team will not work. Several properties believe a tracking number is their direct line to the property. To verify with complete accuracy, please pick up office phone (if your phones have more than one line, complete this process using Line 1), and make an outgoing call manually to your cellphone. The number that reflects is the direct line for the property.' },
+
+  { key: 'maintDirect',       sheetHeader: 'Do residents call mainteance directly for emergencies?', label: 'Do residents call maintenance directly for emergencies?', type: 'yesno', required: true,
+    hiddenIf:   { field: 'happyCo', equals: 'Yes' } },
+  { key: 'maintNumber',       sheetHeader: 'If yes, what is the number',                             label: 'If yes, what is that number?', type: 'tel',
+    checkTracking: true,
+    requiredIf: { field: 'maintDirect', equals: 'Yes' },
+    hiddenIf:   [{ field: 'maintDirect', equals: 'No' }, { field: 'happyCo', equals: 'Yes' }] },
+
+  { key: 'courtesyDirect',    sheetHeader: 'Do residents call courtesy officers directly?',          label: 'Do residents call courtesy officers directly?', type: 'choice', required: true,
+    options: ['Yes', 'No', 'No Courtesy Officer'] },
+  { key: 'courtesyNumber',    sheetHeader: 'If yes, what is the courtesy officer number',            label: 'If yes, what is the courtesy officer number?', type: 'tel',
+    checkTracking: true,
+    requiredIf: { field: 'courtesyDirect', equals: 'Yes' },
+    hiddenIf:   [{ field: 'courtesyDirect', equals: 'No' },
+                 { field: 'courtesyDirect', equals: 'No Courtesy Officer' }] },
+
+  // "Here is what we hold -- is it right?" The website must actually be opened
+  // before it can be answered; the email just needs answering.
+  { key: 'propertyWebsite',   sheetHeader: 'Property Website',                                       label: 'Property Website',         type: 'confirm', required: true,
+    requireOpen: true,
+    confirmPrompt: 'Is this the correct property website?',
+    correctionLabel: 'Enter the correct property website',
+    correctionKey: 'propertyWebsiteCorrected',
+    answerKey: 'propertyWebsiteOk',
+    openHint: 'Open the link to check it. This line cannot be completed until you do.' },
+
+  { key: 'propertyEmail',     sheetHeader: 'Property Email',                                         label: 'Property Email',           type: 'confirm', required: true,
+    confirmPrompt: 'Is this the correct property email?',
+    correctionLabel: 'Enter the correct property email',
+    correctionKey: 'propertyEmailCorrected',
+    answerKey: 'propertyEmailOk' },
+
   { key: 'officeHours',       sheetHeader: 'Office Hours',                                           label: 'Office Hours',             type: 'hours',    required: true,
     structKey: 'officeHoursStruct' },
+
   { key: 'completedBy',       sheetHeader: 'Completed by',                                           label: 'Completed by',             type: 'text',     system: true },
-  { key: 'cmSmName',          sheetHeader: 'CM/SM Name',                                             label: 'CM / SM Name',             type: 'text',     required: true }
+  { key: 'completedDate',     sheetHeader: 'Completed date',                                         label: 'Date',                     type: 'date',     system: true, autoToday: true }
 ];
 
 const BY_KEY = Object.fromEntries(FIELDS.map(f => [f.key, f]));
 
 // Stored alongside the sheet columns but not itself a column.
-const EXTRA_KEYS = ['officeHoursStruct'];
+// Companion values stored beside the sheet columns: the free-text behind an
+// "Other" choice, the answers and corrections behind a confirm line, and the
+// per-property tracking numbers the import supplies.
+const EXTRA_KEYS = [
+  'officeHoursStruct',
+  'answeringServiceOther',
+  'propertyWebsiteOk', 'propertyWebsiteCorrected', 'propertyWebsiteOpened',
+  'propertyEmailOk', 'propertyEmailCorrected'
+];
+
+const STAFF_KEYS = FIELDS.filter(f => f.staff).map(f => f.key);
+
+// Owner chain: Regional Manager, else Senior Regional Manager, else RVP.
+const OWNER_CHAIN = FIELDS.filter(f => f.ownerRank)
+  .sort((a, b) => a.ownerRank - b.ownerRank)
+  .map(f => f.key);
+
+function ownerKeyFor(fields) {
+  for (const k of OWNER_CHAIN) {
+    if (!isBlank(fields[k])) return k;
+  }
+  return null;
+}
+
+function resolveOwner(fields) {
+  const k = ownerKeyFor(fields);
+  return k ? String(fields[k]).trim() : '';
+}
+
+// ---------------------------------------------------------------------------
+// Tracking numbers
+// ---------------------------------------------------------------------------
+const digitsOnly = (v) => String(v || '').replace(/\D/g, '');
+
+function trackingList(fields) {
+  return String(fields.trackingNumbers || '')
+    .split(/[,;\n]/).map(s => digitsOnly(s)).filter(s => s.length >= 7);
+}
+
+// A US number can be written with or without the leading 1, so compare the last
+// ten digits rather than the raw string.
+function sameNumber(a, b) {
+  const x = digitsOnly(a), y = digitsOnly(b);
+  if (!x || !y) return false;
+  return x.slice(-10) === y.slice(-10) && x.slice(-10).length === 10;
+}
+
+function isTrackingNumber(fields, value) {
+  if (isBlank(value)) return false;
+  return trackingList(fields).some(t => sameNumber(t, value));
+}
+
+// ---------------------------------------------------------------------------
+// "They said No to HappyCo, then named HappyCo as the answering service"
+// ---------------------------------------------------------------------------
+// Strips case, spaces and punctuation, then allows one character of difference,
+// so "happy co", "HappyCO." and "Happyco" all match.
+function squash(v) {
+  return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function withinOneEdit(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else { i++; j++; }
+  }
+  if (i < a.length || j < b.length) edits++;
+  return edits <= 1;
+}
+
+function looksLikeHappyCo(value) {
+  const s = squash(value);
+  if (!s) return false;
+  return withinOneEdit(s, 'happyco');
+}
+
+// The answering service the reviewer actually named, following "Other" through
+// to its free text.
+function answeringServiceValue(fields) {
+  const picked = String(fields.answeringService || '').trim();
+  if (picked === 'Other') return String(fields.answeringServiceOther || '').trim();
+  return picked;
+}
+
+// Returns a description of the contradiction, or null when there is none.
+function happyCoConflict(fields) {
+  const said = String(fields.happyCo || '').trim();
+  if (said !== 'No') return null;
+  const named = answeringServiceValue(fields);
+  if (!looksLikeHappyCo(named)) return null;
+  return { named: named };
+}
 
 // ---------------------------------------------------------------------------
 // Office hours
@@ -87,6 +230,8 @@ function expandHours(struct) {
 
 // Every day must be decided, and at least one day must actually be open.
 function hoursComplete(struct) {
+  // An appointment-only office has no hours to state, so that alone completes it.
+  if (struct && struct.appointmentOnly) return true;
   const days = expandHours(struct);
   if (!days) return false;
   let anyOpen = false;
@@ -111,6 +256,7 @@ function to12h(hhmm) {
 
 // "Mon-Fri 9:00 AM-6:00 PM, Sat 10:00 AM-5:00 PM, Sun Closed"
 function formatHours(struct) {
+  if (struct && struct.appointmentOnly) return 'By appointment only';
   const days = expandHours(struct);
   if (!days) return '';
   const sig = (d) => days[d].closed ? 'closed' : (days[d].open + '|' + days[d].close);
@@ -327,6 +473,31 @@ function effectiveValue(fields, field) {
   if (!f) return '';
   if (f.key === 'officeHours') return officeHoursText(fields);
   if (f.autoIf && String(fields[f.autoIf.field] || '').trim() === f.autoIf.equals) return f.autoIf.value;
+
+  // A choice answered "Other" reads as whatever was typed instead.
+  if (f.allowOther && String(fields[f.key] || '').trim() === f.allowOther) {
+    const typed = fields[f.otherKey];
+    return isBlank(typed) ? '' : String(typed).trim();
+  }
+
+  // A confirm line reads as the value that ends up being true: the one on file
+  // if they said it was right, the correction if they said it was not.
+  if (f.type === 'confirm') {
+    const ok = String(fields[f.answerKey] || '').trim();
+    if (ok === 'Yes') return isBlank(fields[f.key]) ? '' : String(fields[f.key]).trim();
+    if (ok === 'No') {
+      const fixed = fields[f.correctionKey];
+      return isBlank(fixed) ? '' : String(fixed).trim();
+    }
+    return '';
+  }
+
+  const v = fields[f.key];
+  return isBlank(v) ? '' : String(v).trim();
+}
+
+// What the property holds on file for a confirm line, before anyone answers.
+function onFileValue(fields, f) {
   const v = fields[f.key];
   return isBlank(v) ? '' : String(v).trim();
 }
@@ -349,8 +520,15 @@ function isRequired(fields, f) {
 function missingFields(fields) {
   const out = [];
   for (const f of FIELDS) {
-    if (f.locked || f.system) continue;
+    if (f.locked || f.system || f.staff) continue;
     if (!isRequired(fields, f)) continue;
+
+    // A link that has to be opened is not answered until it has been.
+    if (f.type === 'confirm' && f.requireOpen &&
+        String(fields[f.openedKey || (f.key + 'Opened')] || '').trim() !== 'Yes') {
+      out.push(f.key);
+      continue;
+    }
     if (isBlank(effectiveValue(fields, f))) out.push(f.key);
   }
   return out;
@@ -366,8 +544,10 @@ function computeStatus(prop) {
 }
 
 module.exports = {
-  FIELDS, BY_KEY, EXTRA_KEYS, DAY_KEYS, DAY_LABEL, DAY_FULL,
-  isBlank, effectiveValue, isHidden, isRequired, missingFields, computeStatus,
+  FIELDS, BY_KEY, EXTRA_KEYS, STAFF_KEYS, OWNER_CHAIN, DAY_KEYS, DAY_LABEL, DAY_FULL,
+  isBlank, effectiveValue, onFileValue, isHidden, isRequired, missingFields, computeStatus,
   parseHours, expandHours, hoursComplete, formatHours, structFromDays,
-  parseHoursText, parseHoursColumns, officeHoursText, to12h, parseTime, parseRange
+  parseHoursText, parseHoursColumns, officeHoursText, to12h, parseTime, parseRange,
+  ownerKeyFor, resolveOwner, digitsOnly, sameNumber, trackingList, isTrackingNumber,
+  squash, withinOneEdit, looksLikeHappyCo, answeringServiceValue, happyCoConflict
 };

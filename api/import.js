@@ -1,5 +1,5 @@
 const { waveDoc, propsCol, regCol, getDb } = require('./_lib/firebase');
-const { FIELDS, DAY_KEYS, DAY_LABEL, DAY_FULL, isBlank,
+const { FIELDS, EXTRA_KEYS, DAY_KEYS, DAY_LABEL, DAY_FULL, isBlank, resolveOwner,
         parseHoursText, parseHoursColumns, formatHours } = require('./_lib/schema');
 const { json, readBody, requireAdmin, slug } = require('./_lib/util');
 const { recomputeWave } = require('./_lib/status');
@@ -15,10 +15,33 @@ for (const f of FIELDS) {
   HEADER_MAP[norm(f.key)] = f.key;
 }
 Object.assign(HEADER_MAP, {
-  [norm('RM Name')]: 'rmName',
-  [norm('Regional')]: 'rmName',
-  [norm('Regional Manager')]: 'rmName',
-  [norm('RVP')]: 'rmName',
+  [norm('RM Name')]: 'regionalManager',
+  [norm('RM Name (RVP if no RM listed for the property)')]: 'regionalManager',
+  [norm('Regional')]: 'regionalManager',
+  [norm('Regional Manager')]: 'regionalManager',
+  [norm('Community Manager')]: 'communityManager',
+  [norm('Community Manager Name')]: 'communityManager',
+  [norm('CM Name')]: 'communityManager',
+  [norm('Senior Community Manager')]: 'seniorCommunityManager',
+  [norm('Senior Community Manager Name')]: 'seniorCommunityManager',
+  [norm('Sr Community Manager')]: 'seniorCommunityManager',
+  [norm('Senior Regional Manager')]: 'seniorRegionalManager',
+  [norm('Senior Regional Manager Name')]: 'seniorRegionalManager',
+  [norm('Sr Regional Manager')]: 'seniorRegionalManager',
+  [norm('RVP')]: 'rvp',
+  [norm('RVP Name')]: 'rvp',
+  [norm('Tracking Numbers')]: 'trackingNumbers',
+  [norm('Tracking Number')]: 'trackingNumbers',
+  [norm('Property Website')]: 'propertyWebsite',
+  [norm('Website')]: 'propertyWebsite',
+  [norm('Property Email')]: 'propertyEmail',
+  [norm('Email')]: 'propertyEmail',
+  [norm('Does the property have an affordable component?')]: 'affordable',
+  [norm('Affordable')]: 'affordable',
+  [norm('Affordable Component')]: 'affordable',
+  [norm('Does the property use EliseAI?')]: 'eliseAI',
+  [norm('EliseAI')]: 'eliseAI',
+  [norm('Elise AI')]: 'eliseAI',
   [norm('Property')]: 'propertyName',
   [norm('Code')]: 'propertyCode',
   [norm('Property ID')]: 'propertyCode',
@@ -53,9 +76,17 @@ for (const d of DAY_KEYS) {
   }
 }
 
-// Reference columns describe the property; the rest are answers to be verified.
-const REFERENCE_KEYS = FIELDS.filter(f => f.locked).map(f => f.key);
-const ANSWER_KEYS = FIELDS.filter(f => !f.locked).map(f => f.key).concat(['officeHoursStruct']);
+// Reference data describes the property and comes from the sheet, so a later
+// import refreshes it. That covers the staff names, the tracking numbers, and
+// the website and email being put up for confirmation -- the reviewer's answers
+// about those live in separate keys and are left alone.
+const REFERENCE_KEYS = FIELDS.filter(f => f.locked || f.staff).map(f => f.key)
+  .concat(['trackingNumbers', 'propertyWebsite', 'propertyEmail']);
+
+// Answers belong to whoever filled them in, so an import only fills blanks.
+const ANSWER_KEYS = FIELDS.filter(f => !f.locked && !f.staff).map(f => f.key)
+  .filter(k => REFERENCE_KEYS.indexOf(k) === -1)
+  .concat(EXTRA_KEYS);
 
 async function commitChunked(ops) {
   const db = getDb();
@@ -100,7 +131,10 @@ function readRow(raw, unmatched) {
   }
 
   if (!fields.propertyName && !fields.propertyCode) return null;
-  if (!fields.rmName) fields.rmName = 'Unassigned';
+  // The portfolio a property is filed under: Regional Manager, else Senior
+  // Regional Manager, else RVP. Resolved once here so grouping, slugs and the
+  // reviewer dropdown all agree.
+  fields.rmName = resolveOwner(fields) || 'Unassigned';
   if (fields.completedBy === undefined) fields.completedBy = '';
 
   const hours = parseHoursColumns(byDay) || parseHoursText(fields.officeHours);

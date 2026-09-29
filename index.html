@@ -110,6 +110,42 @@
   .vlabel{font-weight:600;font-size:13.5px;margin-bottom:7px;display:flex;gap:9px;
     align-items:baseline;justify-content:space-between}
   .vlabel .tick{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
+  /* still behind the passcode; deliberately quiet so reviewers ignore it */
+  .adminlink{color:rgba(255,255,255,.72);font-size:12.5px;text-decoration:none;
+    border:1px solid rgba(255,255,255,.28);border-radius:6px;padding:4px 11px;white-space:nowrap}
+  .adminlink:hover{background:rgba(255,255,255,.12);color:#fff}
+
+  /* nothing on file for this line */
+  .vlabel .req{color:var(--red);font-weight:800;font-size:15px;cursor:help}
+  .vhint{font-size:13px;color:var(--muted);margin:-3px 0 9px;line-height:1.5}
+
+  /* reference details and the people attached to the property */
+  .refactions{display:flex;gap:8px;margin:-6px 0 16px}
+  .staffin{width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:6px;
+    font:inherit;font-size:14px;background:#fff}
+  .lockmark{font-size:12px;color:var(--muted)}
+
+  /* stacked option list, for choices too long for one strip */
+  .optlist{display:flex;flex-direction:column;gap:7px;max-width:460px}
+  .optlist button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+    background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:9px 13px;
+    font:inherit;font-weight:600;cursor:pointer;color:var(--ink);text-align:left;width:100%}
+  .optlist button:hover:not([aria-pressed=true]){background:#f2f5f9}
+  .optlist button[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:#fff}
+  .optlist .optnote{font-size:12px;font-weight:500;opacity:.8}
+
+  /* confirm-what-we-hold lines */
+  .openlink{display:inline-block;font-size:15.5px;font-weight:600;color:var(--blue);
+    word-break:break-all;margin-bottom:6px}
+  .note.ok{color:var(--green);font-weight:600}
+  .confirmq{font-size:14px;font-weight:600;margin:10px 0 7px}
+
+  /* office hours greyed out when the office is appointment only */
+  .hours.appt .hrow,.hours.appt > .seg.sm{opacity:.4;pointer-events:none}
+
+  .signdate{margin-top:12px;max-width:220px}
+  .signdate input{background:#f2f5f9;color:var(--muted);cursor:not-allowed}
+
   .na-note{background:#f2f5f9;border:1px solid var(--line);border-left:4px solid #8fa3bd;
     border-radius:7px;padding:10px 12px;margin:0 0 12px;font-size:13px;color:var(--muted)}
   .vnotice{background:var(--amber-soft);border:1px solid #f0dcb4;border-left:4px solid #d79a2b;
@@ -202,6 +238,7 @@
       <h1>Property Detail Verification</h1>
       <div class="sub" id="waveSub">Loading…</div>
     </div>
+    <a class="adminlink" href="/admin">Admin</a>
   </div>
 </header>
 
@@ -249,6 +286,7 @@ var FIELDS = [], BY_KEY = {};
 var state = { scope:'open', waveId:null, waves:[], rmSlug:null, regional:null, props:[], person:'' };
 var drafts = {};   // propertyId -> working values
 var rows   = {};   // propertyId -> { fieldKey: 'idle' | 'confirmed' | 'editing' }
+var staffEdit = {};  // propertyId -> details panel open for editing
 
 var DAY_KEYS  = ['mon','tue','wed','thu','fri','sat','sun'];
 var DAY_LABEL = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
@@ -331,6 +369,8 @@ function expandHours(s){
   return out;
 }
 function hoursComplete(s){
+  // An appointment-only office has no hours to state, so that alone completes it.
+  if (s && s.appointmentOnly) return true;
   var days = expandHours(s);
   if (!days) return false;
   var anyOpen = false;
@@ -351,6 +391,7 @@ function to12h(h){
   return hh + ':' + m[2] + ' ' + suf;
 }
 function formatHours(s){
+  if (s && s.appointmentOnly) return 'By appointment only';
   var days = expandHours(s);
   if (!days) return '';
   var sig = function(d){ return days[d].closed ? 'closed' : (days[d].open + '|' + days[d].close); };
@@ -380,9 +421,36 @@ function isBlank(v){
 function effective(fields, f){
   if (f.key === 'officeHours') return officeHoursText(fields);
   if (f.autoIf && String(fields[f.autoIf.field] || '').trim() === f.autoIf.equals) return f.autoIf.value;
+
+  // A choice answered "Other" reads as whatever was typed instead.
+  if (f.allowOther && String(fields[f.key] || '').trim() === f.allowOther) {
+    var typed = fields[f.otherKey];
+    return isBlank(typed) ? '' : String(typed).trim();
+  }
+
+  // A confirm line reads as whichever value ends up being true.
+  if (f.type === 'confirm') {
+    var ok = String(fields[f.answerKey] || '').trim();
+    if (ok === 'Yes') return isBlank(fields[f.key]) ? '' : String(fields[f.key]).trim();
+    if (ok === 'No') {
+      var fixed = fields[f.correctionKey];
+      return isBlank(fixed) ? '' : String(fixed).trim();
+    }
+    return '';
+  }
+
   var v = fields[f.key];
   return isBlank(v) ? '' : String(v).trim();
 }
+
+// What we hold on file for a confirm line, before anyone answers it.
+function onFile(fields, f){
+  var v = fields[f.key];
+  return isBlank(v) ? '' : String(v).trim();
+}
+
+function openedKeyOf(f){ return f.openedKey || (f.key + 'Opened'); }
+function wasOpened(fields, f){ return String(fields[openedKeyOf(f)] || '').trim() === 'Yes'; }
 // hiddenIf takes one condition or a list; any match makes the field not apply.
 function isHidden(fields, f){
   if (!f.hiddenIf) return false;
@@ -403,14 +471,18 @@ function isAuto(fields, f){
 // that is blank has nothing to check, so it is left out of the count.
 function checkableFields(live){
   return FIELDS.filter(function(f){
-    if (f.locked || f.system) return false;
+    if (f.locked || f.system || f.staff) return false;
     if (isHidden(live, f) || isAuto(live, f)) return false;
     return isRequired(live, f) || !isBlank(effective(live, f));
   });
 }
 function missingOf(fields){
   return FIELDS.filter(function(f){
-    return !f.locked && !f.system && isRequired(fields, f) && isBlank(effective(fields, f));
+    if (f.locked || f.system || f.staff) return false;
+    if (!isRequired(fields, f)) return false;
+    // A link that must be opened is not answered until it has been.
+    if (f.type === 'confirm' && f.requireOpen && !wasOpened(fields, f)) return true;
+    return isBlank(effective(fields, f));
   }).map(function(f){ return f.key; });
 }
 
@@ -660,9 +732,27 @@ function propCard(p){
   return card;
 }
 
-function referenceBlock(fields){
+// Which staff name is currently acting as the property's owner. That one cannot
+// be edited here, because changing it would move the property to someone else.
+function ownerKeyOf(fields){
+  var chain = FIELDS.filter(function(f){ return f.ownerRank; })
+                    .sort(function(a,b){ return a.ownerRank - b.ownerRank; });
+  for (var i = 0; i < chain.length; i++) {
+    if (!isBlank(fields[chain[i].key])) return chain[i].key;
+  }
+  return null;
+}
+
+// Property details and the people attached to it. Not questions to verify --
+// reference, with an Edit button for the names.
+function referenceBlock(p, fields, editable){
+  var wrap = el('div');
   var dl = el('div', { class:'facts' });
+
   FIELDS.filter(function(f){ return f.locked; }).forEach(function(f){
+    // rmName is the resolved owner and is listed again among the staff names
+    // below, so showing it here would repeat the same person twice.
+    if (f.key === 'rmName') return;
     var v = fields[f.key];
     if (isBlank(v)) return;
     dl.appendChild(el('div', { class:'fact' }, [
@@ -670,7 +760,46 @@ function referenceBlock(fields){
       el('dd', { text: f.type === 'date' ? fmtDate(v) : String(v) })
     ]));
   });
-  return dl;
+
+  var owner = ownerKeyOf(fields);
+  var staff = FIELDS.filter(function(f){ return f.staff; });
+  var editing = p && staffEdit[p.id];
+
+  staff.forEach(function(f){
+    var v = fields[f.key];
+    if (isBlank(v) && !editing) return;          // nothing to show until they edit
+    var dd = el('dd');
+    if (editing && f.key !== owner) {
+      var inp = el('input', { type:'text', class:'staffin', placeholder:'—' });
+      inp.value = isBlank(v) ? '' : String(v);
+      inp.addEventListener('input', function(){ fields[f.key] = inp.value; });
+      dd.appendChild(inp);
+    } else {
+      dd.appendChild(el('span', { text: isBlank(v) ? '—' : String(v) }));
+      if (editing && f.key === owner) {
+        dd.appendChild(el('span', { class:'lockmark',
+          text:' — this is the portfolio this property sits in, so it cannot be changed here' }));
+      }
+    }
+    dl.appendChild(el('div', { class:'fact' }, [ el('dt', { text: f.label }), dd ]));
+  });
+
+  wrap.appendChild(dl);
+
+  if (editable && p) {
+    var bar = el('div', { class:'refactions' });
+    if (!editing) {
+      bar.appendChild(el('button', { class:'btn ghost tiny', type:'button', text:'Edit these details',
+        onclick: function(){ staffEdit[p.id] = true; render(); } }));
+    } else {
+      bar.appendChild(el('button', { class:'btn ok tiny', type:'button', text:'Save details',
+        onclick: function(ev){ staffEdit[p.id] = false; submit(p, ev.currentTarget, false); } }));
+      bar.appendChild(el('button', { class:'btn ghost tiny', type:'button', text:'Cancel',
+        onclick: function(){ staffEdit[p.id] = false; delete drafts[p.id]; render(); } }));
+    }
+    wrap.appendChild(bar);
+  }
+  return wrap;
 }
 
 function buildBody(body, p){
@@ -678,7 +807,7 @@ function buildBody(body, p){
     body.appendChild(el('div', { class:'banner good',
       text: 'Confirmed by ' + (p.verifiedBy || 'someone') + ' on ' +
             new Date(p.verifiedAt).toLocaleString('en-US', { dateStyle:'medium', timeStyle:'short' }) + '.' }));
-    body.appendChild(referenceBlock(p.fields));
+    body.appendChild(referenceBlock(p, p.fields, false));
     var dl = el('div', { class:'facts' });
     FIELDS.forEach(function(f){
       if (f.locked || f.system || isHidden(p.fields, f)) return;
@@ -704,13 +833,14 @@ function buildBody(body, p){
   body.appendChild(el('div', { class:'banner info',
     text: 'Check each line below one at a time. Confirm what is right, correct what is not, and fill in anything we do not have.' }));
 
-  body.appendChild(referenceBlock(live));
+  body.appendChild(referenceBlock(p, live, true));
 
   // Answering Yes to HappyCo removes two questions from the list. Say so, or it
   // looks like lines vanished and the count dropped for no reason.
   if (String(live.happyCo || '').trim() === 'Yes') {
-    var na = FIELDS.filter(function(f){ return isHidden(live, f) && !f.locked && !f.system; })
-                   .map(function(f){ return f.label; });
+    var na = FIELDS.filter(function(f){ return isHidden(live, f) && !f.locked && !f.system && !f.staff; })
+                   .map(function(f){ return f.label; })
+                   .filter(function(l, i, arr){ return arr.indexOf(l) === i; });
     var auto = FIELDS.filter(function(f){
       return f.autoIf && !isHidden(live, f) &&
              String(live[f.autoIf.field] || '').trim() === f.autoIf.equals;
@@ -747,6 +877,17 @@ function buildBody(body, p){
   whoInput.addEventListener('input', function(){ live.completedBy = whoInput.value; });
   whoInput.addEventListener('blur', function(){ render(); });
   whoRow.appendChild(whoInput);
+
+  // Stamped, not typed: always today, shown so the reviewer can see what is
+  // being recorded against their name.
+  var dateWrap = el('div', { class:'signdate' });
+  dateWrap.appendChild(el('label', { class:'fl', text:'Date' }));
+  var dateIn = el('input', { type:'text', readonly:'readonly', tabindex:'-1' });
+  dateIn.value = fmtDate(todayISO());
+  dateWrap.appendChild(dateIn);
+  dateWrap.appendChild(el('div', { class:'note', text:'Recorded automatically.' }));
+  whoRow.appendChild(dateWrap);
+
   body.appendChild(whoRow);
 
   body.appendChild(el('div', { class:'checkline',
@@ -813,12 +954,19 @@ function vrow(p, live, f){
 
   var row = el('div', { class:'vrow ' + (settled ? 'settled' : (st === 'editing' && wasBlank ? 'blank' : 'todo')) });
 
-  var lab = el('div', { class:'vlabel' }, [ el('span', { text: f.label }) ]);
+  var name = el('span', { text: f.label });
+  // Nothing on file for this one: marked with an asterisk beside the question
+  // rather than a sentence where the answer belongs.
+  if (wasBlank) name.appendChild(el('span', { class:'req', title:'Nothing on file — please answer', text:' *' }));
+
+  var lab = el('div', { class:'vlabel' }, [ name ]);
   if (settled) {
     lab.appendChild(el('span', { class:'tick',
       text: st === 'confirmed' ? '✓ Confirmed correct' : (wasBlank ? '✓ Added' : '✓ Updated') }));
   }
   row.appendChild(lab);
+
+  if (f.hint) row.appendChild(el('div', { class:'vhint', text: f.hint }));
 
   // Shown in every state, including after the line is ticked, so the instruction
   // cannot be dismissed by confirming the line without following it.
@@ -847,9 +995,6 @@ function vrow(p, live, f){
   }
 
   // editing
-  if (wasBlank) {
-    row.appendChild(el('div', { class:'vvalue none', text:'Not on file — please add it.' }));
-  }
   row.appendChild(control(p, live, f));
   if (!wasBlank) {
     row.appendChild(el('div', { class:'vactions' }, [
@@ -866,14 +1011,96 @@ function vrow(p, live, f){
 function control(p, live, f){
   if (f.type === 'hours') return hoursControl(p, live);
 
+  // "Here is what we hold — is it right?" Optionally the value has to be opened
+  // before it can be answered.
+  if (f.type === 'confirm') {
+    var box = el('div');
+    var held = onFile(live, f);
+    var opened = wasOpened(live, f);
+    var answer = String(live[f.answerKey] || '').trim();
+
+    if (held) {
+      if (f.requireOpen) {
+        var link = el('a', { class:'openlink', href: withScheme(held), target:'_blank', rel:'noopener noreferrer',
+          text: held });
+        link.addEventListener('click', function(){
+          live[openedKeyOf(f)] = 'Yes';
+          setTimeout(render, 60);   // let the tab open before the list redraws
+        });
+        box.appendChild(link);
+        if (!opened) {
+          box.appendChild(el('div', { class:'note', text: f.openHint || 'Open the link before answering.' }));
+          return box;                                  // nothing else until it is opened
+        }
+        box.appendChild(el('div', { class:'note ok', text:'✓ Opened' }));
+      } else {
+        box.appendChild(el('div', { class:'vvalue', style:'margin-bottom:8px', text: held }));
+      }
+    } else {
+      box.appendChild(el('div', { class:'note', text:'Nothing on file — enter the correct one below.' }));
+    }
+
+    if (held) {
+      box.appendChild(el('div', { class:'confirmq', text: f.confirmPrompt || 'Is this correct?' }));
+      var seg2 = el('div', { class:'seg' });
+      ['Yes','No'].forEach(function(opt){
+        var b = el('button', { type:'button', text:opt, onclick: function(){
+          live[f.answerKey] = opt;
+          if (opt === 'Yes') live[f.correctionKey] = '';
+          render();
+        }});
+        b.setAttribute('aria-pressed', answer === opt ? 'true' : 'false');
+        seg2.appendChild(b);
+      });
+      box.appendChild(seg2);
+    }
+
+    if (!held || answer === 'No') {
+      var fix = el('input', { type:'text', style:'margin-top:10px',
+        placeholder: f.correctionLabel || 'Enter the correct value' });
+      fix.value = live[f.correctionKey] || '';
+      fix.addEventListener('input', function(){
+        live[f.correctionKey] = fix.value;
+        if (!held) live[f.answerKey] = 'No';
+      });
+      fix.addEventListener('blur', function(){ render(); });
+      box.appendChild(el('label', { class:'fl', style:'margin-top:10px',
+        text: f.correctionLabel || 'Enter the correct value' }));
+      box.appendChild(fix);
+    }
+    return box;
+  }
+
   if (f.type === 'yesno' || f.type === 'choice') {
-    var seg = el('div', { class:'seg' });
-    (f.options || ['Yes','No']).forEach(function(opt){
-      var b = el('button', { type:'button', text:opt, onclick: function(){ live[f.key] = opt; render(); }});
+    var opts = f.options || ['Yes','No'];
+    var wrapC = el('div');
+    // A long option list reads better stacked than crammed into one strip.
+    var seg = el('div', { class: opts.length > 3 ? 'optlist' : 'seg' });
+
+    opts.forEach(function(opt){
+      var b = el('button', { type:'button', onclick: function(){
+        live[f.key] = opt;
+        if (f.allowOther && opt !== f.allowOther) live[f.otherKey] = '';
+        render();
+      }});
+      b.appendChild(el('span', { text: opt }));
+      var note = f.optionNotes && f.optionNotes[opt];
+      if (note) b.appendChild(el('span', { class:'optnote', text: note }));
       b.setAttribute('aria-pressed', String(live[f.key]).trim() === opt ? 'true' : 'false');
       seg.appendChild(b);
     });
-    return seg;
+    wrapC.appendChild(seg);
+
+    // "Other" opens a box to name it.
+    if (f.allowOther && String(live[f.key] || '').trim() === f.allowOther) {
+      var oi = el('input', { type:'text', style:'margin-top:10px',
+        placeholder:'Who is the provider?' });
+      oi.value = live[f.otherKey] || '';
+      oi.addEventListener('input', function(){ live[f.otherKey] = oi.value; });
+      oi.addEventListener('blur', function(){ render(); });
+      wrapC.appendChild(oi);
+    }
+    return wrapC;
   }
   if (f.type === 'textarea') {
     var toggleWrap = el('div');
@@ -915,7 +1142,24 @@ function control(p, live, f){
     id:'f_' + p.id + '_' + f.key, placeholder: f.placeholder || '' });
   inp.value = live[f.key] || '';
   inp.addEventListener('input', function(){ live[f.key] = inp.value; });
-  inp.addEventListener('blur', function(){ render(); });
+  inp.addEventListener('blur', function(){
+    // A number we already know is a tracking line is rejected on the spot, so
+    // they re-check the handset rather than finding out at confirm time.
+    if (f.checkTracking && trackingHit(live, inp.value)) {
+      var bad = inp.value;
+      live[f.key] = '';
+      inp.value = '';
+      render();
+      modal({
+        title: 'That is a tracking number',
+        lines: [ bad + ' is a Knock tracking number and cannot be used.',
+                 'Please reverify the direct landline number for the property per the instructions on that line.' ],
+        buttons: [{ label:'OK', value:true, style:'ok' }]
+      });
+      return;
+    }
+    render();
+  });
   return inp;
 }
 
@@ -966,7 +1210,8 @@ function hoursControl(p, live){
 
   function commit(){ live.officeHoursStruct = JSON.stringify(struct); render(); }
 
-  var box = el('div', { class:'hours' });
+  var appt = !!struct.appointmentOnly;
+  var box = el('div', { class:'hours' + (appt ? ' appt' : '') });
 
   var seg = el('div', { class:'seg sm', style:'margin-bottom:12px' });
   [['grouped','Same hours Mon–Fri'], ['daily','Set each day']].forEach(function(m){
@@ -1029,8 +1274,24 @@ function hoursControl(p, live){
     });
   }
 
+  // An office seen by appointment has no hours to state, so ticking this greys
+  // the day rows out and completes the line on its own.
+  var apptBtn = el('button', { class:'toggle' + (appt ? ' on' : ''), type:'button',
+    'aria-pressed': appt ? 'true' : 'false', style:'margin-top:14px',
+    onclick: function(){
+      if (struct.appointmentOnly) delete struct.appointmentOnly;
+      else struct.appointmentOnly = true;
+      commit();
+    }});
+  apptBtn.appendChild(el('span', { class:'box', 'aria-hidden':'true', text: appt ? '✓' : '' }));
+  apptBtn.appendChild(el('span', { text:'Appointment Only' }));
+  box.appendChild(apptBtn);
+
   var prev = el('div', { class:'hours-preview' });
-  if (hoursComplete(struct)) {
+  if (appt) {
+    prev.appendChild(document.createTextNode('Recorded as: '));
+    prev.appendChild(el('b', { text:'By appointment only' }));
+  } else if (hoursComplete(struct)) {
     prev.appendChild(document.createTextNode('Recorded as: '));
     prev.appendChild(el('b', { text: formatHours(struct) }));
   } else {
@@ -1038,6 +1299,68 @@ function hoursControl(p, live){
   }
   box.appendChild(prev);
   return box;
+}
+
+// Links arrive from the sheet with or without a scheme; without one the browser
+// would treat it as a relative path and go nowhere useful.
+function todayISO(){
+  var d = new Date();
+  return d.getFullYear() + '-' +
+         String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+
+// ---- tracking numbers -----------------------------------------------------
+function digitsOnly(v){ return String(v || '').replace(/\D/g, ''); }
+
+function sameNumber(a, b){
+  var x = digitsOnly(a), y = digitsOnly(b);
+  if (!x || !y) return false;
+  return x.slice(-10).length === 10 && x.slice(-10) === y.slice(-10);
+}
+
+function trackingHit(fields, value){
+  if (isBlank(value)) return false;
+  return String(fields.trackingNumbers || '')
+    .split(/[,;\n]/)
+    .map(function(s){ return digitsOnly(s); })
+    .filter(function(s){ return s.length >= 7; })
+    .some(function(t){ return sameNumber(t, value); });
+}
+
+// ---- "said No to HappyCo, then named HappyCo" -----------------------------
+function squash(v){ return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+function withinOneEdit(a, b){
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  var i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else { i++; j++; }
+  }
+  if (i < a.length || j < b.length) edits++;
+  return edits <= 1;
+}
+
+function looksLikeHappyCo(v){
+  var s = squash(v);
+  return !!s && withinOneEdit(s, 'happyco');
+}
+
+function namedAnsweringService(fields){
+  var picked = String(fields.answeringService || '').trim();
+  if (picked === 'Other') return String(fields.answeringServiceOther || '').trim();
+  return picked;
+}
+
+function withScheme(u){
+  var s = String(u || '').trim();
+  if (!s) return s;
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : 'https://' + s;
 }
 
 // ---------- saving ----------
@@ -1057,6 +1380,41 @@ function askThenSubmit(p, btn){
     return;
   }
 
+  // Last time, people answered No to HappyCo and then named HappyCo as their
+  // answering service. Catch the contradiction before it is signed off.
+  if (String(live.happyCo || '').trim() === 'No' && looksLikeHappyCo(namedAnsweringService(live))) {
+    modal({
+      title: 'Quick check on HappyCo',
+      lines: [
+        'You answered No to "Does the property use HappyCo?", but named ' +
+          namedAnsweringService(live) + ' as the answering service.',
+        'If the property uses HappyCo, we should record that as Yes — it also sets the ' +
+          'answering service and forwarding for you.',
+        'Which is right?'
+      ],
+      buttons: [
+        { label:'It does use HappyCo — fix it', value:'fix', style:'ok' },
+        { label:'No, that is correct as written', value:'keep', style:'ghost' }
+      ]
+    }).then(function(choice){
+      if (choice === 'fix') {
+        live.happyCo = 'Yes';
+        live.answeringService = '';
+        live.answeringServiceOther = '';
+        setRowState(p, BY_KEY.happyCo, 'confirmed');
+        render();
+        toast('Set to Yes — please check the lines that changed.');
+        return;
+      }
+      if (choice === 'keep') confirmNow(p, btn);
+    });
+    return;
+  }
+
+  confirmNow(p, btn);
+}
+
+function confirmNow(p, btn){
   modal({
     title: 'Are you sure?',
     lines: ['You will not be able to make a correction once confirmed.'],

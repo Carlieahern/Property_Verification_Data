@@ -1,5 +1,6 @@
 const { propsCol } = require('./_lib/firebase');
-const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText, isHidden } = require('./_lib/schema');
+const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText, isHidden,
+        ownerKeyFor, isTrackingNumber } = require('./_lib/schema');
 const { json, readBody, isAdmin } = require('./_lib/util');
 const { recomputeRegional } = require('./_lib/status');
 
@@ -36,11 +37,33 @@ module.exports = async (req, res) => {
     const before = Object.assign({}, prop.fields || {});
     const after = Object.assign({}, before);
 
+    // Whichever staff name the portfolio is filed under cannot be changed from
+    // the reviewer page, because it would move the property off their list.
+    const lockedOwner = ownerKeyFor(before);
+
     // Only accept the editable columns; property name/code/RM stay as imported.
     for (const key of EDITABLE) {
       if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
+      if (key === lockedOwner) continue;
       const v = incoming[key];
       after[key] = v == null ? '' : String(v).trim();
+    }
+
+    // A known tracking number is never an acceptable answer, whoever types it.
+    const tracking = [];
+    for (const f of FIELDS) {
+      if (!f.checkTracking) continue;
+      if (isTrackingNumber(after, after[f.key])) {
+        tracking.push({ key: f.key, label: f.label, value: String(after[f.key]).trim() });
+        after[f.key] = '';
+      }
+    }
+    if (tracking.length) {
+      return json(res, 400, {
+        error: tracking[0].value + ' is a Knock tracking number and cannot be used. ' +
+               'Please reverify the direct landline number for the property per the instructions.',
+        tracking
+      });
     }
 
     // Bake in the workbook's HappyCo formulas so exports match the sheet exactly.
@@ -85,7 +108,11 @@ module.exports = async (req, res) => {
       update.verified = true;
       update.verifiedAt = now;
       update.verifiedBy = personName;
-      update.fields = Object.assign({}, after, { completedBy: personName });
+      // Stamped rather than typed, so the report always carries a real date.
+      update.fields = Object.assign({}, after, {
+        completedBy: personName,
+        completedDate: now.slice(0, 10)
+      });
       update.verifiedAction = changes.length ? 'corrected' : 'confirmed';
     }
 
