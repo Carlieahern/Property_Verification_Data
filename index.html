@@ -134,7 +134,6 @@
     font:inherit;font-weight:600;cursor:pointer;color:var(--ink);text-align:left;width:100%}
   .optlist button:hover:not([aria-pressed=true]){background:#f2f5f9}
   .optlist button[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:#fff}
-  .optlist .optnote{font-size:12px;font-weight:500;opacity:.8}
 
   /* confirm-what-we-hold lines */
   .openlink{display:inline-block;font-size:15.5px;font-weight:600;color:var(--blue);
@@ -1084,14 +1083,13 @@ function control(p, live, f){
     var seg = el('div', { class: opts.length > 3 ? 'optlist' : 'seg' });
 
     opts.forEach(function(opt){
-      var b = el('button', { type:'button', onclick: function(){
+      var b = el('button', { type:'button', text: opt, onclick: function(){
         live[f.key] = opt;
         if (f.allowOther && opt !== f.allowOther) live[f.otherKey] = '';
         render();
+        // Picking a listed provider can contradict the HappyCo answer too.
+        if (f.key === 'answeringService') catchHappyCoConflict(p, live);
       }});
-      b.appendChild(el('span', { text: opt }));
-      var note = f.optionNotes && f.optionNotes[opt];
-      if (note) b.appendChild(el('span', { class:'optnote', text: note }));
       b.setAttribute('aria-pressed', String(live[f.key]).trim() === opt ? 'true' : 'false');
       seg.appendChild(b);
     });
@@ -1103,7 +1101,11 @@ function control(p, live, f){
         placeholder:'Who is the provider?' });
       oi.value = live[f.otherKey] || '';
       oi.addEventListener('input', function(){ live[f.otherKey] = oi.value; });
-      oi.addEventListener('blur', function(){ render(); });
+      oi.addEventListener('blur', function(){
+        render();
+        // Raise the contradiction as soon as they have typed it, not at the end.
+        if (f.key === 'answeringService') catchHappyCoConflict(p, live);
+      });
       wrapC.appendChild(oi);
     }
     return wrapC;
@@ -1363,6 +1365,48 @@ function namedAnsweringService(fields){
   return picked;
 }
 
+// Which contradiction we have already put to them, so the prompt appears when
+// they type it and then stays out of the way.
+var happyCoAsked = {};
+
+// Raised the moment the answering service contradicts the HappyCo answer, and
+// again as a backstop at confirm time if it somehow was not seen.
+function catchHappyCoConflict(p, live, onSettled){
+  var named = namedAnsweringService(live);
+  var conflict = String(live.happyCo || '').trim() === 'No' && looksLikeHappyCo(named);
+
+  if (!conflict) { if (onSettled) onSettled(); return false; }
+  if (happyCoAsked[p.id] === squash(named)) { if (onSettled) onSettled(); return false; }
+  happyCoAsked[p.id] = squash(named);
+
+  modal({
+    title: 'Quick check on HappyCo',
+    lines: [
+      'You answered No to "Does the property use HappyCo?", but named ' + named +
+        ' as the answering service.',
+      'If the property does use HappyCo, recording that as Yes also fills in the ' +
+        'answering service and the forwarding directions for you.',
+      'Which is right?'
+    ],
+    buttons: [
+      { label:'It does use HappyCo — fix it', value:'fix', style:'ok' },
+      { label:'No, that is correct as written', value:'keep', style:'ghost' }
+    ]
+  }).then(function(choice){
+    if (choice === 'fix') {
+      live.happyCo = 'Yes';
+      live.answeringService = '';
+      live.answeringServiceOther = '';
+      setRowState(p, BY_KEY.happyCo, 'confirmed');
+      render();
+      toast('Set to Yes — some lines are now filled in for you.');
+      return;
+    }
+    if (onSettled) onSettled();
+  });
+  return true;
+}
+
 function withScheme(u){
   var s = String(u || '').trim();
   if (!s) return s;
@@ -1386,38 +1430,8 @@ function askThenSubmit(p, btn){
     return;
   }
 
-  // Last time, people answered No to HappyCo and then named HappyCo as their
-  // answering service. Catch the contradiction before it is signed off.
-  if (String(live.happyCo || '').trim() === 'No' && looksLikeHappyCo(namedAnsweringService(live))) {
-    modal({
-      title: 'Quick check on HappyCo',
-      lines: [
-        'You answered No to "Does the property use HappyCo?", but named ' +
-          namedAnsweringService(live) + ' as the answering service.',
-        'If the property uses HappyCo, we should record that as Yes — it also sets the ' +
-          'answering service and forwarding for you.',
-        'Which is right?'
-      ],
-      buttons: [
-        { label:'It does use HappyCo — fix it', value:'fix', style:'ok' },
-        { label:'No, that is correct as written', value:'keep', style:'ghost' }
-      ]
-    }).then(function(choice){
-      if (choice === 'fix') {
-        live.happyCo = 'Yes';
-        live.answeringService = '';
-        live.answeringServiceOther = '';
-        setRowState(p, BY_KEY.happyCo, 'confirmed');
-        render();
-        toast('Set to Yes — please check the lines that changed.');
-        return;
-      }
-      if (choice === 'keep') confirmNow(p, btn);
-    });
-    return;
-  }
-
-  confirmNow(p, btn);
+  // Backstop: normally this was already raised when they typed it.
+  catchHappyCoConflict(p, live, function(){ confirmNow(p, btn); });
 }
 
 function confirmNow(p, btn){

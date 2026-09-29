@@ -51,9 +51,7 @@ const FIELDS = [
   // Tiered, not a pick-list: Full Suite contains the leasing options, and
   // Managed Services contains Full Suite. One answer only.
   { key: 'eliseAI',           sheetHeader: 'Does the property use EliseAI?',                         label: 'Does the property use Elise AI?', type: 'choice', required: true,
-    options: ['No', 'Leasing Only', 'Leasing & Voice Only', 'Full Suite', 'Managed Services'],
-    optionNotes: { 'Full Suite': 'Leasing, Leasing & Voice, and Residents',
-                   'Managed Services': 'Includes everything in Full Suite' } },
+    options: ['No', 'Leasing Only', 'Leasing & Voice Only', 'Full Suite', 'Managed Services'] },
 
   { key: 'phoneLandline',     sheetHeader: 'Phone Landline Number',                                  label: 'Direct Phone Number',      type: 'tel',      required: true,
     checkTracking: true,
