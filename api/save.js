@@ -1,5 +1,5 @@
 const { propsCol } = require('./_lib/firebase');
-const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText, isHidden,
+const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText, isHidden, canonicalizeAutoForward,
         ownerKeyFor, isTrackingNumber } = require('./_lib/schema');
 const { json, readBody, isAdmin } = require('./_lib/util');
 const { recomputeRegional } = require('./_lib/status');
@@ -78,6 +78,7 @@ module.exports = async (req, res) => {
       if (isHidden(after, f)) after[f.key] = '';
     }
     // Keep the flat Office Hours text in step with the day/time picker.
+    canonicalizeAutoForward(after);
     after.officeHours = officeHoursText(after);
 
     const changes = [];

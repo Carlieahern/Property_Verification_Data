@@ -1,5 +1,5 @@
 const { waveDoc, propsCol, regCol, getDb } = require('./_lib/firebase');
-const { FIELDS, EXTRA_KEYS, DAY_KEYS, DAY_LABEL, DAY_FULL, isBlank, resolveOwner,
+const { FIELDS, EXTRA_KEYS, DAY_KEYS, DAY_LABEL, DAY_FULL, isBlank, resolveOwner, canonicalizeAutoForward,
         parseHoursText, parseHoursColumns, formatHours } = require('./_lib/schema');
 const { json, readBody, requireAdmin, slug } = require('./_lib/util');
 const { recomputeWave } = require('./_lib/status');
@@ -136,6 +136,9 @@ function readRow(raw, unmatched) {
   // reviewer dropdown all agree.
   fields.rmName = resolveOwner(fields) || 'Unassigned';
   if (fields.completedBy === undefined) fields.completedBy = '';
+
+  // A sheet saying "Auto-Forwards" should arrive with the switch already on.
+  canonicalizeAutoForward(fields);
 
   const hours = parseHoursColumns(byDay) || parseHoursText(fields.officeHours);
   if (hours) {

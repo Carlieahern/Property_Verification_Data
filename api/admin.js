@@ -1,7 +1,7 @@
 const { waveDoc, propsCol, regCol, getDb } = require('./_lib/firebase');
 const { json, readBody, requireAdmin, slug } = require('./_lib/util');
 const { recomputeWave, recomputeRegional, baseUrl } = require('./_lib/status');
-const { FIELDS, EXTRA_KEYS, isBlank, parseHoursText, formatHours,
+const { FIELDS, EXTRA_KEYS, isBlank, parseHoursText, formatHours, canonicalizeAutoForward,
         missingFields, computeStatus } = require('./_lib/schema');
 
 const WRITABLE = FIELDS.filter(f => !f.system).map(f => f.key).concat(EXTRA_KEYS);
@@ -127,6 +127,9 @@ module.exports = async (req, res) => {
         }
       }
 
+      // Match the importer: an auto-forward answer sets the switch, not free text.
+      canonicalizeAutoForward(after);
+
       const changes = [];
       for (const key of WRITABLE) {
         const a = before[key] == null ? '' : String(before[key]).trim();
@@ -237,6 +240,7 @@ module.exports = async (req, res) => {
         }
       }
 
+      canonicalizeAutoForward(fields);
       const rmSlug = slug(fields.rmName);
       const propId = slug(`${fields.propertyCode || ''}-${fields.propertyName}`);
       const ref = propsCol(waveId).doc(propId);

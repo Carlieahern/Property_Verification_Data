@@ -201,6 +201,33 @@ function looksLikeHappyCo(value) {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Auto-forwarding
+// ---------------------------------------------------------------------------
+// The switch is "on" only when the field holds exactly this string, so anything
+// arriving from a sheet meaning the same thing is rewritten to it. Without that,
+// a cell reading "Auto-Forwards" leaves the switch off and the words sitting in
+// the box as though someone had typed them by hand.
+const AUTO_FORWARD_VALUE = (BY_KEY.directionsForward &&
+                            BY_KEY.directionsForward.toggle &&
+                            BY_KEY.directionsForward.toggle.value) || 'Auto Forwards';
+
+function looksLikeAutoForward(value) {
+  const s = squash(value);
+  if (!s) return false;
+  if (s === 'autoforward' || s === 'autoforwards' ||
+      s === 'autoforwarding' || s === 'autoforwarded') return true;
+  return withinEdits(s, 'autoforward', 1) || withinEdits(s, 'autoforwards', 1);
+}
+
+// Rewrites an auto-forward answer to the exact value the switch recognises.
+function canonicalizeAutoForward(fields) {
+  if (looksLikeAutoForward(fields.directionsForward)) {
+    fields.directionsForward = AUTO_FORWARD_VALUE;
+  }
+  return fields;
+}
+
 // The answering service the reviewer actually named, following "Other" through
 // to its free text.
 function answeringServiceValue(fields) {
@@ -570,5 +597,7 @@ module.exports = {
   parseHours, expandHours, hoursComplete, formatHours, structFromDays,
   parseHoursText, parseHoursColumns, officeHoursText, to12h, parseTime, parseRange,
   ownerKeyFor, resolveOwner, digitsOnly, sameNumber, trackingList, isTrackingNumber,
-  squash, withinOneEdit, looksLikeHappyCo, answeringServiceValue, happyCoConflict
+  squash, withinOneEdit, withinEdits, editDistance, looksLikeHappyCo,
+  AUTO_FORWARD_VALUE, looksLikeAutoForward, canonicalizeAutoForward,
+  answeringServiceValue, happyCoConflict
 };
