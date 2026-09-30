@@ -452,6 +452,34 @@ function onFile(fields, f){
   return isBlank(v) ? '' : String(v).trim();
 }
 
+// The choices a question offers: the built-in list, plus anything an import
+// introduced for this wave, plus whatever this property already holds — so a
+// provider that arrived from a sheet is selectable rather than merely shown.
+// "Other" stays last, since it is the escape hatch.
+function optionsFor(f, live, p){
+  var base = (f.options || ['Yes','No']).slice();
+  if (!f.allowOther) return base;
+
+  var wave = (state.waves || []).filter(function(w){ return w.id === (p && p.waveId); })[0];
+  var extra = (wave && wave.extraAnsweringServices) || [];
+  var current = String(live[f.key] || '').trim();
+
+  var other = f.allowOther;
+  var list = base.filter(function(o){ return o !== other; });
+  var seen = {};
+  list.forEach(function(o){ seen[squash(o)] = true; });
+
+  extra.concat(current ? [current] : []).forEach(function(v){
+    var k = squash(v);
+    if (!v || v === other || seen[k]) return;
+    seen[k] = true;
+    list.push(v);
+  });
+
+  list.push(other);
+  return list;
+}
+
 function openedKeyOf(f){ return f.openedKey || (f.key + 'Opened'); }
 function wasOpened(fields, f){ return String(fields[openedKeyOf(f)] || '').trim() === 'Yes'; }
 // hiddenIf takes one condition or a list; any match makes the field not apply.
@@ -1107,7 +1135,7 @@ function control(p, live, f){
   }
 
   if (f.type === 'yesno' || f.type === 'choice') {
-    var opts = f.options || ['Yes','No'];
+    var opts = optionsFor(f, live, p);
     var wrapC = el('div');
     // A long option list reads better stacked than crammed into one strip.
     var seg = el('div', { class: opts.length > 3 ? 'optlist' : 'seg' });

@@ -1,5 +1,6 @@
 const { waveDoc, propsCol, regCol, getDb } = require('./_lib/firebase');
-const { FIELDS, EXTRA_KEYS, DAY_KEYS, DAY_LABEL, DAY_FULL, isBlank, resolveOwner, canonicalizeAutoForward,
+const { FIELDS, BY_KEY, EXTRA_KEYS, DAY_KEYS, DAY_LABEL, DAY_FULL, isBlank, resolveOwner,
+        canonicalizeAutoForward, squash, looksLikeHappyCo,
         parseHoursText, parseHoursColumns, formatHours } = require('./_lib/schema');
 const { json, readBody, requireAdmin, slug } = require('./_lib/util');
 const { recomputeWave } = require('./_lib/status');
@@ -188,6 +189,12 @@ module.exports = async (req, res) => {
     }
 
     const unmatched = new Set();
+    // Answering services named in the sheet that are not already on the list.
+    // Collected so they become selectable across the wave, rather than sitting
+    // on one property as a value nobody can pick again.
+    const knownProviders = (BY_KEY.answeringService.options || [])
+      .map(o => squash(o));
+    const newProviders = new Map();
     const ops = [];
     const regionals = new Map();
     const stats = {
@@ -201,6 +208,13 @@ module.exports = async (req, res) => {
       const parsed = readRow(raw, unmatched);
       if (!parsed) { stats.skippedEmptyRows++; return; }
       const incoming = parsed.fields;
+
+      // Remember any answering service the list does not already carry.
+      var namedSvc = String(incoming.answeringService || '').trim();
+      if (namedSvc && knownProviders.indexOf(squash(namedSvc)) === -1 &&
+          !looksLikeHappyCo(namedSvc) && !newProviders.has(squash(namedSvc))) {
+        newProviders.set(squash(namedSvc), namedSvc);
+      }
 
       if (parsed.hoursParsed) stats.hoursParsed++;
       else if (incoming.officeHours) stats.hoursUnparsed++;
@@ -287,7 +301,18 @@ module.exports = async (req, res) => {
       transitionDate: body.transitionDate !== undefined && body.transitionDate !== null
         ? body.transitionDate
         : (existing.exists ? (existing.data().transitionDate || null) : null),
-      archived: existing.exists ? !!existing.data().archived : false
+      archived: existing.exists ? !!existing.data().archived : false,
+      // Providers the sheet introduced, kept on the wave so every property in it
+      // can pick them. Merged with anything an earlier import added.
+      extraAnsweringServices: (function () {
+        const had = (existing.exists && existing.data().extraAnsweringServices) || [];
+        const seen = new Set(had.map(v => squash(v)));
+        const out = had.slice();
+        for (const name of newProviders.values()) {
+          if (!seen.has(squash(name))) { seen.add(squash(name)); out.push(name); }
+        }
+        return out.sort((a, b) => a.localeCompare(b));
+      })()
     }, { merge: true });
 
     // Recalculate every Regional's totals from the properties themselves, so
@@ -307,6 +332,7 @@ module.exports = async (req, res) => {
       totalInWave: totalSnap.size,
       hoursParsed: stats.hoursParsed,
       hoursUnparsed: stats.hoursUnparsed,
+      addedProviders: Array.from(newProviders.values()),
       unmatchedHeaders: Array.from(unmatched)
     });
   } catch (e) {

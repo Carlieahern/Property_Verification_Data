@@ -978,6 +978,11 @@ $('#importBtn').addEventListener('click', function(ev){
           text: 'Office hours: '+(r.hoursParsed||0)+' loaded into the day/time picker'
             + (r.hoursUnparsed ? ', '+r.hoursUnparsed+' kept as plain text because the format was not recognised (still verifiable as-is).' : '.')}));
       }
+      if((r.addedProviders||[]).length){
+        box.appendChild(el('div',{class:'banner info',
+          text:'Added to the Answering Service list for this wave: '+r.addedProviders.join(', ')+
+               '. Every property in the wave can now pick them.'}));
+      }
       if((r.unmatchedHeaders||[]).length){
         box.appendChild(el('div',{class:'banner warn',
           text:'These columns were not recognised and were ignored: '+r.unmatchedHeaders.join(' · ')}));
