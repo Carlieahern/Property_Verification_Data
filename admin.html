@@ -214,7 +214,7 @@
 "use strict";
 
 var adminKey = '';
-var state = { waves:[], waveId:null, dash:null, parsedRows:null, fields:[], addInputs:{}, editInputs:{}, editList:[] };
+var state = { waves:[], waveId:null, dash:null, parsedRows:null, fields:[], addInputs:{}, editInputs:{}, editList:[], markBy:'' };
 
 var $ = function(s){ return document.querySelector(s); };
 function el(t,a,k){
@@ -413,7 +413,9 @@ function renderDash(){
           el('div',{class:'what',text:names || '—'})
         ]),
         el('div',{class:'num',style:'white-space:nowrap;color:#5b6577;font-size:13px'},[
-          el('span',{text:left+' of '+(r.total||0)+' left'})
+          el('span',{text:left+' of '+(r.total||0)+' left'}),
+          el('button',{class:'btn ghost sm',style:'margin-left:10px',text:'Mark complete',
+            onclick:function(ev){ markRegionalComplete(r, ev.currentTarget); }})
         ])
       ]));
     });
@@ -656,6 +658,31 @@ function renderAddForm(){
 
 $('#addClearBtn').addEventListener('click', function(){ renderAddForm(); $('#addMsg').innerHTML=''; });
 
+// Mark everything outstanding for one Regional as done, without sending it back
+// to them. For work that is finished in reality.
+function markRegionalComplete(r, btn){
+  var left = (r.total||0) - (r.verified||0);
+  if (!confirm('Mark ' + r.rmName + '’s remaining ' + left +
+               ' propert' + (left===1?'y':'ies') + ' complete?\n\n' +
+               'They will stop appearing as outstanding and nobody will be asked to confirm them. ' +
+               'Properties already confirmed are left alone.')) return;
+  var who = prompt('Your name, recorded against this:', state.markBy || 'Carlie Ahern');
+  if (who === null) return;
+  state.markBy = who;
+  var why = prompt('Why (optional, kept in the change log):', '') || '';
+
+  btn.disabled = true; btn.textContent = 'Marking…';
+  api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'markComplete', waveId: state.waveId, scope:'regional',
+                           rmSlug: r.rmSlug, by: who, note: why }) })
+    .then(function(res){
+      toast('Marked ' + res.completed.length + ' complete' +
+            (res.alreadyComplete.length ? ' (' + res.alreadyComplete.length + ' already were)' : ''));
+      return loadDash();
+    })
+    .catch(function(e){ toast(e.message); btn.disabled=false; btn.textContent='Mark complete'; });
+}
+
 // ---------- edit an existing property ----------
 // keepMessage is set after a save, so refreshing the list does not wipe the
 // confirmation of what was just changed.
@@ -830,6 +857,36 @@ $('#editSel').addEventListener('change', function(){
       $('#editActions').appendChild(el('button',{ class:'btn ghost', text:'Cancel', onclick:function(){
         $('#editSel').value=''; $('#editForm').innerHTML=''; $('#editActions').innerHTML=''; $('#editMsg').innerHTML='';
       }}));
+
+      // Mark this one done without asking anybody to confirm it.
+      if (!p.verified && !p.adminComplete) {
+        $('#editActions').appendChild(el('button',{ class:'btn ghost', text:'Mark complete',
+          onclick:function(ev){
+            if(!confirm('Mark this property complete?\n\nIt stops appearing as outstanding and nobody will be asked to confirm it.')) return;
+            var who = prompt('Your name, recorded against this:', state.markBy || 'Carlie Ahern');
+            if (who === null) return;
+            state.markBy = who;
+            var why = prompt('Why (optional, kept in the change log):','') || '';
+            var b=ev.currentTarget; b.disabled=true; b.textContent='Marking…';
+            api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ action:'markComplete', waveId: state.waveId,
+                                     scope:'property', propertyId: id, by: who, note: why }) })
+              .then(function(){ toast('Marked complete'); return loadDash(); })
+              .then(function(){ return loadEditList({ reselect:true }); })
+              .catch(function(e){ toast(e.message); b.disabled=false; b.textContent='Mark complete'; });
+          }}));
+      }
+      if (p.adminComplete) {
+        $('#editActions').appendChild(el('button',{ class:'btn ghost', text:'Undo mark complete',
+          onclick:function(ev){
+            var b=ev.currentTarget; b.disabled=true;
+            api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ action:'unmarkComplete', waveId: state.waveId, propertyId: id }) })
+              .then(function(){ toast('No longer marked complete'); return loadDash(); })
+              .then(function(){ return loadEditList({ reselect:true }); })
+              .catch(function(e){ toast(e.message); b.disabled=false; });
+          }}));
+      }
 
       // Still the right tool when the Regional should look at it again rather
       // than have the answer changed underneath them.

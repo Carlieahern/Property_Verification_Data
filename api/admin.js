@@ -89,6 +89,9 @@ module.exports = async (req, res) => {
         verifiedBy: p.verifiedBy || '',
         verifiedAt: p.verifiedAt || null,
         missing: missingFields(p.fields || {}),
+        adminComplete: !!p.adminComplete,
+        adminCompleteBy: p.adminCompleteBy || '',
+        adminCompleteAt: p.adminCompleteAt || null,
         history: (p.history || []).slice(-10)
       });
     }
@@ -180,6 +183,69 @@ module.exports = async (req, res) => {
         stillNeededLabels: stillNeeded.map(k => (FIELDS.find(f => f.key === k) || {}).label || k),
         regional
       });
+    }
+
+    // Mark work done without sending it back to a Regional -- for properties
+    // that are finished in reality, such as ones confirmed under an earlier set
+    // of questions, so nobody is asked to redo them.
+    if (action === 'markComplete') {
+      if (!waveId) return json(res, 400, { error: 'wave is required.' });
+      const scope = body.scope === 'regional' ? 'regional' : 'property';
+      const by = String(body.by || '').trim() || 'Admin';
+      const note = body.note ? String(body.note).slice(0, 300) : '';
+      const now = new Date().toISOString();
+
+      let targets = [];
+      let rmSlug = body.rmSlug;
+      if (scope === 'regional') {
+        if (!rmSlug) return json(res, 400, { error: 'rmSlug is required.' });
+        const snap = await propsCol(waveId).where('rmSlug', '==', rmSlug).get();
+        targets = snap.docs;
+      } else {
+        if (!body.propertyId) return json(res, 400, { error: 'propertyId is required.' });
+        const one = await propsCol(waveId).doc(body.propertyId).get();
+        if (!one.exists) return json(res, 404, { error: 'Property not found.' });
+        targets = [one];
+        rmSlug = one.data().rmSlug;
+      }
+
+      const done = [], alreadyDone = [];
+      for (const d of targets) {
+        const prop = d.data();
+        if (computeStatus(prop) === 'verified') {
+          alreadyDone.push((prop.fields || {}).propertyName || d.id);
+          continue;
+        }
+        const history = Array.isArray(prop.history) ? prop.history.slice(-49) : [];
+        history.push({ at: now, by, action: 'admin_complete', note, changes: [] });
+        await d.ref.set({
+          adminComplete: true, adminCompleteAt: now, adminCompleteBy: by,
+          adminCompleteNote: note, history
+        }, { merge: true });
+        done.push((prop.fields || {}).propertyName || d.id);
+      }
+
+      const regional = rmSlug ? await recomputeRegional(waveId, rmSlug) : null;
+      return json(res, 200, { ok: true, scope, completed: done, alreadyComplete: alreadyDone, regional });
+    }
+
+    // Undo the above, putting the property back to whatever it genuinely is.
+    if (action === 'unmarkComplete') {
+      if (!waveId || !body.propertyId) return json(res, 400, { error: 'wave and propertyId are required.' });
+      const uref = propsCol(waveId).doc(body.propertyId);
+      const usnap = await uref.get();
+      if (!usnap.exists) return json(res, 404, { error: 'Property not found.' });
+      const uprop = usnap.data();
+      if (!uprop.adminComplete) return json(res, 400, { error: 'That property was not marked complete by an admin.' });
+
+      const uhist = Array.isArray(uprop.history) ? uprop.history.slice(-49) : [];
+      uhist.push({ at: new Date().toISOString(), by: 'admin', action: 'admin_complete_removed', changes: [] });
+      await uref.set({
+        adminComplete: false, adminCompleteAt: null, adminCompleteBy: null,
+        adminCompleteNote: null, history: uhist
+      }, { merge: true });
+
+      return json(res, 200, { ok: true, regional: await recomputeRegional(waveId, uprop.rmSlug) });
     }
 
     if (action === 'unlockProperty') {

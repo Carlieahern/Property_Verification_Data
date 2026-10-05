@@ -1,5 +1,5 @@
 const { propsCol } = require('./_lib/firebase');
-const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText, isHidden, canonicalizeAutoForward,
+const { FIELDS, BY_KEY, EXTRA_KEYS, missingFields, computeStatus, officeHoursText, isHidden, canonicalizeAutoForward, answeredKeys,
         ownerKeyFor, isTrackingNumber } = require('./_lib/schema');
 const { json, readBody, isAdmin } = require('./_lib/util');
 const { recomputeRegional } = require('./_lib/status');
@@ -115,6 +115,8 @@ module.exports = async (req, res) => {
         completedDate: now.slice(0, 10)
       });
       update.verifiedAction = changes.length ? 'corrected' : 'confirmed';
+      // What the signature covers, so a later new question does not reopen it.
+      update.verifiedKeys = answeredKeys(after);
     }
 
     if (changes.length || verify) {

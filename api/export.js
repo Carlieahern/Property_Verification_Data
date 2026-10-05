@@ -50,10 +50,14 @@ module.exports = async (req, res) => {
         // inapplicable is not mistaken for one nobody got round to.
         FIELDS.map(fd => isHidden(f, fd) ? 'N/A' : (f[fd.key] == null ? '' : String(f[fd.key])))
           .concat([
-            STATUS_TEXT[st] || st,
+            // Say plainly when a property was marked done by an admin rather
+            // than confirmed by the Regional, so the report cannot overstate it.
+            (p.adminComplete && !p.verified) ? 'Marked complete by admin'
+                                             : (STATUS_TEXT[st] || st),
             miss.join('; '),
-            p.verifiedBy || '',
-            p.verifiedAt ? new Date(p.verifiedAt).toLocaleString('en-US') : '',
+            p.verifiedBy || (p.adminComplete ? (p.adminCompleteBy || 'Admin') : ''),
+            p.verifiedAt ? new Date(p.verifiedAt).toLocaleString('en-US')
+              : (p.adminCompleteAt ? new Date(p.adminCompleteAt).toLocaleString('en-US') : ''),
             lastAction && lastAction.action === 'corrected' ? 'Yes' : (p.verified ? 'No' : '')
           ])
       );

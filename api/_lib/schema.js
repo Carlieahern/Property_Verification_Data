@@ -605,19 +605,47 @@ function missingFields(fields) {
 }
 
 // A property counts as done only when nothing is missing AND a person confirmed it.
+// A signature covers the questions that existed when it was given. Adding a
+// question later must not retroactively un-finish someone's work, so a verified
+// property only reopens if something it actually answered has since gone blank.
+// `verifiedKeys` records what was required at the time; properties confirmed
+// before it was recorded are trusted outright.
 function computeStatus(prop) {
   const missing = missingFields(prop.fields || {});
-  if (missing.length === 0 && prop.verified) return 'verified';
+
+  if (prop.verified) {
+    if (prop.adminComplete) return 'verified';
+    const covered = Array.isArray(prop.verifiedKeys) ? prop.verifiedKeys : null;
+    if (!covered) return 'verified';
+    const regressed = missing.filter(k => covered.indexOf(k) >= 0);
+    return regressed.length === 0 ? 'verified' : 'in_progress';
+  }
+
+  // Marked done by an admin without a reviewer ever signing it.
+  if (prop.adminComplete) return 'verified';
+
   if (missing.length === 0) return 'ready';        // nothing blank, awaiting confirmation
   if (prop.touched) return 'in_progress';
   return 'needs_input';
+}
+
+// Required questions a property currently answers — recorded at confirm time so
+// a later schema change can be told apart from an answer being removed.
+function answeredKeys(fields) {
+  const out = [];
+  for (const f of FIELDS) {
+    if (f.locked || f.system || f.staff) continue;
+    if (!isRequired(fields, f)) continue;
+    out.push(f.key);
+  }
+  return out;
 }
 
 module.exports = {
   FIELDS, BY_KEY, EXTRA_KEYS, STAFF_KEYS, OWNER_CHAIN, DAY_KEYS, DAY_LABEL, DAY_FULL,
   isBlank, effectiveValue, onFileValue, isHidden, isRequired, missingFields, computeStatus,
   parseHours, expandHours, hoursComplete, formatHours, structFromDays,
-  parseHoursText, parseHoursColumns, officeHoursText, to12h, parseTime, parseRange,
+  parseHoursText, parseHoursColumns, officeHoursText, to12h, parseTime, parseRange, answeredKeys,
   ownerKeyFor, resolveOwner, digitsOnly, sameNumber, trackingList, isTrackingNumber,
   squash, withinOneEdit, withinEdits, editDistance, looksLikeHappyCo,
   AUTO_FORWARD_VALUE, looksLikeAutoForward, canonicalizeAutoForward,
