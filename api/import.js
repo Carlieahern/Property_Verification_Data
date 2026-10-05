@@ -62,9 +62,21 @@ Object.assign(HEADER_MAP, {
 
 // Optional per-day office-hours columns, taking precedence over a single
 // free-text "Office Hours" cell when present.
+// Spellings people actually head a column with. Single letters are left out on
+// purpose: a column called "T" or "S" is as likely to be something else as a day.
+const DAY_ALIASES = {
+  mon: ['Monday', 'Mon', 'Mo'],
+  tue: ['Tuesday', 'Tue', 'Tues', 'Tu'],
+  wed: ['Wednesday', 'Wed', 'Weds', 'We'],
+  thu: ['Thursday', 'Thu', 'Thur', 'Thurs', 'Th'],
+  fri: ['Friday', 'Fri', 'Fr'],
+  sat: ['Saturday', 'Sat', 'Sa'],
+  sun: ['Sunday', 'Sun', 'Su']
+};
+
 const DAY_HEADER = {};
 for (const d of DAY_KEYS) {
-  for (const n of [DAY_FULL[d], DAY_LABEL[d]]) {
+  for (const n of DAY_ALIASES[d] || [DAY_FULL[d], DAY_LABEL[d]]) {
     DAY_HEADER[norm(n)] = { day: d, part: 'range' };
     DAY_HEADER[norm(n + ' Hours')] = { day: d, part: 'range' };
     DAY_HEADER[norm(n + ' Office Hours')] = { day: d, part: 'range' };

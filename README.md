@@ -134,8 +134,12 @@ M: 9-8 T: 9-6 W: 9-8 TH: 9-6 F: 9-6 Sat: 10-5 Sun: 1-5
 - Opening times read as morning and closing times as afternoon, so `9-5` means
   9:00 AM to 5:00 PM. Use 24-hour (`1730`) or `am`/`pm` to be explicit.
 
-Alternatively, per-day columns — `Monday Hours` … `Sunday Hours` holding `9-6` or
-`closed`, or `Monday Open` + `Monday Close` pairs holding one time each.
+Alternatively, per-day columns. The header can be the full name or a common short
+form -- `Monday` `Mon` `Mo`, `Tuesday` `Tue` `Tues` `Tu`, `Wednesday` `Wed` `Weds`
+`We`, `Thursday` `Thu` `Thur` `Thurs` `Th`, `Friday` `Fri` `Fr`, `Saturday` `Sat`
+`Sa`, `Sunday` `Sun` `Su` -- on its own or with ` Hours` after it. Each cell holds
+`9-6`, `closed` or `appointment`. Or use `Monday Open` + `Monday Close` pairs with one
+time each. Single letters are not accepted as headers, since `T` and `S` are ambiguous.
 
 Any day not mentioned is recorded as **Closed** — always shown back to the Regional to
 confirm, so a wrong reading cannot slip through. The import result reports how many rows
