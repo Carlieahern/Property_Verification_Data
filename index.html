@@ -1,4 +1,8 @@
-<!doctype html>
+      if (v.closed) continue;
+      // By appointment is a complete answer for that day: there are no times.
+      if (v.appt) { anyOpen = true; continue; }
+      if (!v.open || !v.close) return false;
+      anyOpen = true;<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -357,7 +361,7 @@ function parseHours(v){
   if (typeof v === 'object') return v;
   try { return JSON.parse(v); } catch(e){ return null; }
 }
-function blankDay(){ return { closed:false, open:'', close:'' }; }
+function blankDay(){ return { closed:false, appt:false, open:'', close:'' }; }
 function expandHours(s){
   if (!s) return null;
   var out = {};
@@ -381,6 +385,8 @@ function hoursComplete(s){
     var v = days[DAY_KEYS[i]];
     if (!v) return false;
     if (v.closed) continue;
+    // By appointment is a complete answer for that day: there are no times.
+    if (v.appt) { anyOpen = true; continue; }
     if (!v.open || !v.close) return false;
     anyOpen = true;
   }
@@ -397,14 +403,14 @@ function formatHours(s){
   if (s && s.appointmentOnly) return 'By appointment only';
   var days = expandHours(s);
   if (!days) return '';
-  var sig = function(d){ return days[d].closed ? 'closed' : (days[d].open + '|' + days[d].close); };
+  var sig = function(d){ return days[d].closed ? 'closed' : days[d].appt ? 'appt' : (days[d].open + '|' + days[d].close); };
   var parts = [], i = 0;
   while (i < DAY_KEYS.length){
     var j = i;
     while (j+1 < DAY_KEYS.length && sig(DAY_KEYS[j+1]) === sig(DAY_KEYS[i])) j++;
     var span = i === j ? DAY_SHORT[DAY_KEYS[i]] : DAY_SHORT[DAY_KEYS[i]] + '-' + DAY_SHORT[DAY_KEYS[j]];
     var v = days[DAY_KEYS[i]];
-    parts.push(span + ' ' + (v.closed ? 'Closed' : to12h(v.open) + '-' + to12h(v.close)));
+    parts.push(span + ' ' + (v.closed ? 'Closed' : v.appt ? 'By appointment' : to12h(v.open) + '-' + to12h(v.close)));
     i = j + 1;
   }
   return parts.join(', ');
@@ -1323,11 +1329,15 @@ function hoursControl(p, live){
     row.appendChild(el('div', { class:'hday', text: label }));
 
     var oc = el('div', { class:'seg sm' });
-    [['open','Open'], ['closed','Closed']].forEach(function(o){
+    // Three states per day: open with times, closed, or by appointment.
+    var state3 = v.closed ? 'closed' : (v.appt ? 'appt' : 'open');
+    [['open','Open'], ['closed','Closed'], ['appt','Appointment']].forEach(function(o){
       var b = el('button', { type:'button', text:o[1], onclick: function(){
-        var c = get(); set({ closed: o[0] === 'closed', open:c.open, close:c.close }); commit();
+        var c = get();
+        set({ closed: o[0] === 'closed', appt: o[0] === 'appt', open:c.open, close:c.close });
+        commit();
       }});
-      b.setAttribute('aria-pressed', (v.closed ? 'closed' : 'open') === o[0] ? 'true' : 'false');
+      b.setAttribute('aria-pressed', state3 === o[0] ? 'true' : 'false');
       oc.appendChild(b);
     });
     row.appendChild(oc);
@@ -1336,11 +1346,11 @@ function hoursControl(p, live){
     var oi = timeSelect(v.open, label + ' opens', function(val){
       var c = get(); set({ closed:c.closed, open:val, close:c.close }); commit();
     });
-    oi.disabled = !!v.closed;
+    oi.disabled = !!(v.closed || v.appt);
     var ci = timeSelect(v.close, label + ' closes', function(val){
       var c = get(); set({ closed:c.closed, open:c.open, close:val }); commit();
     });
-    ci.disabled = !!v.closed;
+    ci.disabled = !!(v.closed || v.appt);
     times.appendChild(oi);
     times.appendChild(el('span', { class:'dash', text:'to' }));
     times.appendChild(ci);
@@ -1373,7 +1383,7 @@ function hoursControl(p, live){
       commit();
     }});
   apptBtn.appendChild(el('span', { class:'box', 'aria-hidden':'true', text: appt ? '✓' : '' }));
-  apptBtn.appendChild(el('span', { text:'Appointment Only' }));
+  apptBtn.appendChild(el('span', { text:'Appointment Only - All Days' }));
   box.appendChild(apptBtn);
 
   var prev = el('div', { class:'hours-preview' });

@@ -130,6 +130,7 @@ M: 9-8 T: 9-6 W: 9-8 TH: 9-6 F: 9-6 Sat: 10-5 Sun: 1-5
 - **Times** — a bare hour (`9`), or hour and minutes with the colon implied
   (`830` = 8:30, `1730` = 17:30). `9:30`, `9am` and `09:00` are still accepted.
 - **Closed** — the word `closed`.
+- **By appointment** — the word `appointment` for a day seen by appointment only.
 - Opening times read as morning and closing times as afternoon, so `9-5` means
   9:00 AM to 5:00 PM. Use 24-hour (`1730`) or `am`/`pm` to be explicit.
 

@@ -259,9 +259,11 @@ function parseHours(v) {
 }
 
 // Both editing modes collapse to the same seven-day shape.
+// A day is in one of three states: open with times, closed, or seen by
+// appointment. `appt` is the third, and like `closed` it needs no times.
 function expandHours(struct) {
   if (!struct) return null;
-  const blank = { closed: false, open: '', close: '' };
+  const blank = { closed: false, appt: false, open: '', close: '' };
   const out = {};
   if (struct.mode === 'daily') {
     for (const d of DAY_KEYS) out[d] = Object.assign({}, blank, (struct.days || {})[d] || {});
@@ -285,6 +287,8 @@ function hoursComplete(struct) {
     const v = days[d];
     if (!v) return false;
     if (v.closed) continue;
+    // By appointment is a complete answer for that day: there are no times.
+    if (v.appt) { anyOpen = true; continue; }
     if (!v.open || !v.close) return false;
     anyOpen = true;
   }
@@ -305,7 +309,9 @@ function formatHours(struct) {
   if (struct && struct.appointmentOnly) return 'By appointment only';
   const days = expandHours(struct);
   if (!days) return '';
-  const sig = (d) => days[d].closed ? 'closed' : (days[d].open + '|' + days[d].close);
+  const sig = (d) => days[d].closed ? 'closed'
+                   : days[d].appt ? 'appt'
+                   : (days[d].open + '|' + days[d].close);
   const parts = [];
   let i = 0;
   while (i < DAY_KEYS.length) {
@@ -313,7 +319,9 @@ function formatHours(struct) {
     while (j + 1 < DAY_KEYS.length && sig(DAY_KEYS[j + 1]) === sig(DAY_KEYS[i])) j++;
     const span = i === j ? DAY_LABEL[DAY_KEYS[i]] : DAY_LABEL[DAY_KEYS[i]] + '-' + DAY_LABEL[DAY_KEYS[j]];
     const v = days[DAY_KEYS[i]];
-    parts.push(span + ' ' + (v.closed ? 'Closed' : to12h(v.open) + '-' + to12h(v.close)));
+    parts.push(span + ' ' + (v.closed ? 'Closed'
+                           : v.appt ? 'By appointment'
+                           : to12h(v.open) + '-' + to12h(v.close)));
     i = j + 1;
   }
   return parts.join(', ');
@@ -322,7 +330,8 @@ function formatHours(struct) {
 // Turn a seven-day map back into the compact struct the picker edits.
 function structFromDays(days) {
   const same = ['tue', 'wed', 'thu', 'fri'].every(d =>
-    days[d].closed === days.mon.closed && days[d].open === days.mon.open && days[d].close === days.mon.close);
+    days[d].closed === days.mon.closed && !!days[d].appt === !!days.mon.appt &&
+    days[d].open === days.mon.open && days[d].close === days.mon.close);
   if (same) return { mode: 'grouped', weekdays: days.mon, saturday: days.sat, sunday: days.sun };
   return { mode: 'daily', days: days };
 }
@@ -378,7 +387,9 @@ function parseTime(raw, role) {
 
 function parseRange(text) {
   const s = String(text || '').trim();
-  if (/closed|n\/?a|none/i.test(s)) return { closed: true, open: '', close: '' };
+  // "Sat: appointment" is a complete answer for that day, same as "closed".
+  if (/appoint/i.test(s)) return { closed: false, appt: true, open: '', close: '' };
+  if (/closed|n\/?a|none/i.test(s)) return { closed: true, appt: false, open: '', close: '' };
   const parts = s.split(/\s*(?:-|–|—|to|till|until|thru)\s*/i).filter(Boolean);
   if (parts.length < 2) return null;
   const open = parseTime(parts[0], 'open');
@@ -464,7 +475,7 @@ function parseHoursText(text) {
   }
 
   if (!matchedAny) return null;
-  for (const d of DAY_KEYS) if (!days[d]) days[d] = { closed: true, open: '', close: '' };
+  for (const d of DAY_KEYS) if (!days[d]) days[d] = { closed: true, appt: false, open: '', close: '' };
   if (!DAY_KEYS.some(d => !days[d].closed)) return null;
   return structFromDays(days);
 }
@@ -480,7 +491,7 @@ function parseHoursColumns(byDay) {
     let v = null;
     if (cell.range) v = parseRange(cell.range);
     else if (cell.open || cell.close) {
-      if (/closed/i.test(String(cell.open || '') + ' ' + String(cell.close || ''))) v = { closed: true, open: '', close: '' };
+      if (/closed/i.test(String(cell.open || '') + ' ' + String(cell.close || ''))) v = { closed: true, appt: false, open: '', close: '' };
       else {
         const o = parseTime(cell.open, 'open'), c = parseTime(cell.close, 'close');
         if (o && c) v = { closed: false, open: o, close: c };
@@ -489,7 +500,7 @@ function parseHoursColumns(byDay) {
     if (v) { days[d] = v; any = true; }
   }
   if (!any) return null;
-  for (const d of DAY_KEYS) if (!days[d]) days[d] = { closed: true, open: '', close: '' };
+  for (const d of DAY_KEYS) if (!days[d]) days[d] = { closed: true, appt: false, open: '', close: '' };
   if (!DAY_KEYS.some(d => !days[d].closed)) return null;
   return structFromDays(days);
 }
