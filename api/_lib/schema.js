@@ -434,9 +434,20 @@ function daysFromToken(token) {
 // Reads things like "Mon-Fri 9am-6pm, Sat 10-5, Sun Closed".
 // Days never mentioned are treated as Closed. The Regional still confirms the
 // result on screen, so a wrong reading cannot slip through unseen.
+// "Appointment Only" on its own, with no day named, means the whole week --
+// the same thing the week-wide switch records.
+function looksLikeAppointmentOnly(text) {
+  let s = squash(text);
+  if (!s) return false;
+  s = s.replace(/^by/, '').replace(/only$/, '');
+  return s === 'appt' || s === 'apt' || /^appoint/.test(s);
+}
+
 function parseHoursText(text) {
   const raw = String(text || '').trim();
   if (!raw || raw === '-') return null;
+
+  if (looksLikeAppointmentOnly(raw)) return { appointmentOnly: true };
 
   // "M: 9-8 T: 9-6 Sat: 10-5" -- entries run together on one line with nothing
   // but a space between them. Break before any day label that carries a colon;
