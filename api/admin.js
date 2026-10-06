@@ -425,6 +425,44 @@ module.exports = async (req, res) => {
       return json(res, 200, { ok: true, from: fromName, to: toName, rmSlug: toSlug, moved, regional });
     }
 
+    // For a property that should never have been in the wave at all -- sold,
+    // duplicated by an import, or not ours. There is no undo, so the caller has
+    // to name it back before anything is removed.
+    if (action === 'deleteProperty') {
+      if (!waveId) return json(res, 400, { error: 'wave is required.' });
+      const propId = String(body.propertyId || '').trim();
+      if (!propId) return json(res, 400, { error: 'propertyId is required.' });
+
+      const ref = propsCol(waveId).doc(propId);
+      const snap = await ref.get();
+      if (!snap.exists) return json(res, 404, { error: 'Property not found.' });
+
+      const prop = snap.data();
+      const fields = prop.fields || {};
+      const name = String(fields.propertyName || propId);
+      if (String(body.confirmName || '').trim().toLowerCase() !== name.trim().toLowerCase()) {
+        return json(res, 400, { error: 'To delete this property, type its exact name: ' + name });
+      }
+
+      const rmSlug = prop.rmSlug || slug(fields.rmName || '');
+      const hadConfirmation = !!prop.verified;
+      await ref.delete();
+
+      // The Regional's counts and the wave totals both quote this property, so
+      // neither is right until they are worked out again.
+      const regional = rmSlug ? await recomputeRegional(waveId, rmSlug) : null;
+      await recomputeWave(waveId);
+
+      return json(res, 200, {
+        ok: true,
+        deleted: name,
+        rmName: fields.rmName || '',
+        hadConfirmation,
+        confirmedBy: hadConfirmation ? (prop.verifiedBy || '') : '',
+        regional
+      });
+    }
+
     if (action === 'recompute') {
       if (!waveId) return json(res, 400, { error: 'wave is required.' });
       const regionals = await recomputeWave(waveId);
