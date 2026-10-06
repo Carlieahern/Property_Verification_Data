@@ -761,6 +761,74 @@ function renderEmailPanel(){
   ]));
 
   box.appendChild(grid);
+  renderHandover(box, regs);
+}
+
+// People leave part-way through a wave. Reimporting to fix the name would put
+// the confirmations already collected at risk, so the portfolio moves instead.
+function renderHandover(box, regs){
+  box.appendChild(el('h2',{text:'Hand a portfolio to someone else',style:'margin-top:26px'}));
+  box.appendChild(el('p',{class:'hint',
+    text:'For when a Regional leaves or their properties change hands. Everything they have already ' +
+         'confirmed stays confirmed under the new name — nobody is asked to redo it.'}));
+
+  var sel = el('select',{},[el('option',{value:'',text:'Choose a Regional…'})]);
+  regs.forEach(function(r){
+    sel.appendChild(el('option',{value:r.rmSlug,
+      text:r.rmName + '  (' + (r.total||0) + ' propert' + ((r.total||0)===1?'y':'ies') +
+           ', ' + (r.verified||0) + ' confirmed)'}));
+  });
+
+  var nameIn  = el('input',{type:'text',placeholder:'Michelle Phetmyxay'});
+  var emailIn = el('input',{type:'email',placeholder:'name@rpmliving.com (optional)'});
+
+  var r1 = el('div',{class:'row',style:'margin-bottom:8px'});
+  r1.appendChild(el('label',{class:'fl',text:'Currently'}));       r1.appendChild(sel);
+  var r2 = el('div',{class:'row',style:'margin-bottom:8px'});
+  r2.appendChild(el('label',{class:'fl',text:'Hand over to'}));    r2.appendChild(nameIn);
+  var r3 = el('div',{class:'row',style:'margin-bottom:8px'});
+  r3.appendChild(el('label',{class:'fl',text:'Their address'}));   r3.appendChild(emailIn);
+  box.appendChild(el('div',{class:'grid g2',style:'margin-top:12px'},[r1,r2,r3]));
+
+  box.appendChild(el('div',{class:'inline',style:'margin-top:10px'},[
+    el('button',{class:'btn',text:'Hand over',onclick:function(ev){
+      var slug = sel.value, newName = nameIn.value.trim();
+      if (!slug)    return toast('Pick who is handing over.');
+      if (!newName) return toast('Type the name it should move to.');
+      var from = regs.filter(function(r){ return r.rmSlug === slug; })[0] || {};
+      var whose = from.rmName ? from.rmName + '’s' : 'their';
+      var msg = (from.total||0) === 1
+        ? 'Move ' + whose + ' only property to ' + newName + '?'
+        : 'Move all ' + (from.total||0) + ' of ' + whose + ' properties to ' + newName + '?';
+      if (from.verified) {
+        msg += '\n\n' + from.verified + ' already confirmed — those stay confirmed, ' +
+               'now recorded against ' + newName + '.';
+      }
+      msg += '\n\n' + (from.rmName||'The old name') + ' will no longer appear in this wave.';
+      if (!confirm(msg)) return;
+      var b = ev.currentTarget; b.disabled = true; b.textContent = 'Moving…';
+      var payload = { action:'renameRegional', waveId: state.waveId,
+                      rmSlug: slug, newName: newName };
+      // Only send an address when one was typed, so an empty box leaves
+      // whatever is already on file rather than wiping it.
+      if (emailIn.value.trim()) payload.email = emailIn.value.trim();
+      api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload) })
+        .then(function(r){
+          toast('Moved ' + r.moved + ' propert' + (r.moved===1?'y':'ies') + ' to ' + r.to);
+          return loadDash();
+        })
+        .then(function(){ renderEmailPanel(); })
+        .catch(function(e){ toast(e.message); b.disabled=false; b.textContent='Hand over'; });
+    }}),
+    el('span',{class:'mini',text:'Their link changes, so send the new one out afterwards.'})
+  ]));
+
+  // The spreadsheet is still the system of record; without the same change
+  // there, the next import quietly puts the old name back.
+  box.appendChild(el('div',{class:'banner info',style:'margin-top:10px',
+    text:'Update the staff name in your CRM export too. If it still lists the old ' +
+         'Regional, the next import will undo this.'}));
 }
 
 function squashName(v){ return String(v||'').toLowerCase().replace(/[^a-z]/g,''); }
