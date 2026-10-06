@@ -81,7 +81,7 @@ module.exports = async (req, res) => {
       ['Anything left blank', 'Becomes a required question for the Regional. That is the point — blanks are safe.'],
       ['Who owns the property', 'Regional Manager, or Senior Regional Manager if that is blank, or RVP if both are. Leave the "RM Name" column blank.'],
       ['Dropdown answers', 'Leave blank, or use exactly Yes / No. A dash counts as blank.'],
-      ['Office Hours', 'M-F: 9-6, Sa: 10-4, Su: closed. Three or four digits means an implied colon: 830 is 8:30, 1730 is 17:30. Write "Appointment Only" for a property seen by appointment all week, or "appointment" in place of a single day's times.'],
+      ['Office Hours', 'M-F: 9-6, Sa: 10-4, Su: closed. Three or four digits means an implied colon: 830 is 8:30, 1730 is 17:30. Write "Appointment Only" for a property seen by appointment all week, or "appointment" in place of a single day’s times.'],
       ['Tracking Numbers', 'Separated by a comma and a space. If a reviewer types one as a phone number it is rejected on the spot.'],
       ['Property Website / Email', 'What we hold today. The reviewer must open the website link before they can answer.'],
       ['Answering Service Provider', (FIELDS.find(f => f.key === 'answeringService').options || []).join(', ') + '. Anything else goes under Other.'],
