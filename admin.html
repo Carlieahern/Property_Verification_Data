@@ -1010,6 +1010,38 @@ $('#editSel').addEventListener('change', function(){
               .catch(function(e){ toast(e.message); b.disabled=false; });
           }}));
       }
+
+      // Last, and on its own: there is no undo, so it should not sit among the
+      // buttons used in the ordinary course of things.
+      $('#editActions').appendChild(el('button',{ class:'btn danger', text:'Delete property',
+        style:'margin-left:auto',
+        onclick:function(ev){
+          var pname = p.fields.propertyName || id;
+          var warn = 'Delete “' + pname + '” from this wave?\n\n' +
+                     'This cannot be undone. Its answers and its change log go with it.';
+          if (p.verified) {
+            warn += '\n\nIt was confirmed by ' + (p.verifiedBy || 'a Regional') +
+                    ', and that confirmation will be lost too.';
+          }
+          warn += '\n\nIf it is simply finished, “Mark complete” is the safer choice.';
+          if (!confirm(warn)) return;
+          var typed = prompt('Type the property name exactly to confirm:', '');
+          if (typed === null) return;
+          var b=ev.currentTarget; b.disabled=true; b.textContent='Deleting…';
+          api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ action:'deleteProperty', waveId: state.waveId,
+                                   propertyId: id, confirmName: typed }) })
+            .then(function(r){
+              $('#editSel').value=''; $('#editForm').innerHTML=''; $('#editActions').innerHTML='';
+              $('#editMsg').innerHTML='';
+              $('#editMsg').appendChild(el('div',{ class:'banner good',
+                text:'Deleted “' + r.deleted + '”' + (r.rmName ? ' from ' + r.rmName + '’s list.' : '.') }));
+              return loadEditList({ keepMessage:true }).then(loadDash);
+            })
+            .catch(function(e){
+              toast(e.message); b.disabled=false; b.textContent='Delete property';
+            });
+        }}));
     })
     .catch(function(e){
       $('#editMsg').appendChild(el('div',{ class:'banner err', text:e.message }));
