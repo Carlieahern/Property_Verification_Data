@@ -2,7 +2,7 @@ const { waveDoc, propsCol, regCol, getDb } = require('./_lib/firebase');
 const { json, readBody, requireAdmin, slug } = require('./_lib/util');
 const { recomputeWave, recomputeRegional, baseUrl } = require('./_lib/status');
 const { FIELDS, EXTRA_KEYS, isBlank, parseHoursText, formatHours, canonicalizeAutoForward,
-        missingFields, computeStatus } = require('./_lib/schema');
+        missingFields, computeStatus, OWNER_CHAIN } = require('./_lib/schema');
 
 const WRITABLE = FIELDS.filter(f => !f.system).map(f => f.key).concat(EXTRA_KEYS);
 
@@ -365,6 +365,64 @@ module.exports = async (req, res) => {
         stillNeededLabels: stillNeeded.map(k => (FIELDS.find(f => f.key === k) || {}).label || k),
         regional
       });
+    }
+
+    // When a Regional leaves part-way through a wave, hand their portfolio to
+    // whoever picks it up, without reimporting. The properties, the position
+    // that actually named them and the regional record all move together, so
+    // anything already confirmed stays confirmed under the new owner.
+    if (action === 'renameRegional') {
+      if (!waveId) return json(res, 400, { error: 'wave is required.' });
+      const fromSlug = String(body.rmSlug || '').trim();
+      const toName = String(body.newName || '').trim();
+      if (!fromSlug) return json(res, 400, { error: 'rmSlug is required.' });
+      if (!toName) return json(res, 400, { error: 'newName is required.' });
+
+      const fromSnap = await regCol(waveId).doc(fromSlug).get();
+      if (!fromSnap.exists) return json(res, 404, { error: 'No such Regional in this wave.' });
+      const fromName = String(fromSnap.data().rmName || fromSlug);
+
+      const toSlug = slug(toName);
+      if (toSlug === fromSlug) return json(res, 400, { error: 'That is already their name.' });
+      const clash = await regCol(waveId).doc(toSlug).get();
+      if (clash.exists) {
+        return json(res, 400, {
+          error: 'This wave already has a Regional called ' + (clash.data().rmName || toName) +
+                 '. Merging two portfolios is not something this can undo, so move the properties by hand.'
+        });
+      }
+
+      // Omitting email leaves whatever is on file; sending one replaces it.
+      const email = body.email === undefined ? null : String(body.email || '').trim();
+
+      const db = getDb();
+      const pSnap = await propsCol(waveId).where('rmSlug', '==', fromSlug).get();
+      let moved = 0;
+      for (let i = 0; i < pSnap.docs.length; i += 400) {
+        const batch = db.batch();
+        for (const d of pSnap.docs.slice(i, i + 400)) {
+          const fields = Object.assign({}, d.data().fields || {});
+          fields.rmName = toName;
+          // Rewrite only the position that held the old name. Whoever owns the
+          // property is worked out from these in order, so changing the wrong
+          // one would hand it back to the person who left.
+          for (const k of OWNER_CHAIN) {
+            if (String(fields[k] || '').trim() === fromName) fields[k] = toName;
+          }
+          batch.set(d.ref, { rmSlug: toSlug, fields, updatedAt: new Date().toISOString() }, { merge: true });
+          moved++;
+        }
+        await batch.commit();
+      }
+
+      const carried = Object.assign({}, fromSnap.data(), { rmSlug: toSlug, rmName: toName });
+      if (email !== null) carried.email = email;
+      await regCol(waveId).doc(toSlug).set(carried, { merge: true });
+      await regCol(waveId).doc(fromSlug).delete();
+
+      const regional = await recomputeRegional(waveId, toSlug);
+      await recomputeWave(waveId);
+      return json(res, 200, { ok: true, from: fromName, to: toName, rmSlug: toSlug, moved, regional });
     }
 
     if (action === 'recompute') {
