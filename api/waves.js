@@ -1,5 +1,31 @@
-const { wavesCol, waveDoc, regCol } = require('./_lib/firebase');
+const { wavesCol, waveDoc, regCol, propsCol } = require('./_lib/firebase');
 const { json } = require('./_lib/util');
+const { computeStatus } = require('./_lib/schema');
+
+// Every property in a wave, grouped by the Regional it sits under, so the
+// picker can show the whole board rather than a bare count. One collection
+// read per wave, not one per Regional.
+async function propertiesByRegional(waveId, waveName) {
+  const snap = await propsCol(waveId).get();
+  const byRm = new Map();
+  for (const d of snap.docs) {
+    const p = d.data();
+    const key = p.rmSlug || '';
+    if (!byRm.has(key)) byRm.set(key, []);
+    byRm.get(key).push({
+      name: String((p.fields || {}).propertyName || d.id),
+      done: computeStatus(p) === 'verified',
+      waveName: waveName
+    });
+  }
+  for (const list of byRm.values()) {
+    // Outstanding first, so what still needs doing is what you see.
+    list.sort((a, b) => (a.done === b.done
+      ? a.name.localeCompare(b.name)
+      : (a.done ? 1 : -1)));
+  }
+  return byRm;
+}
 
 function waveSummary(id, w) {
   return {
@@ -26,9 +52,12 @@ module.exports = async (req, res) => {
       if (!wSnap.exists) return json(res, 404, { error: 'Wave not found.' });
       const wave = Object.assign({ id: wSnap.id }, wSnap.data());
 
-      const rSnap = await regCol(waveId).get();
+      const [rSnap, byRm] = await Promise.all([
+        regCol(waveId).get(),
+        propertiesByRegional(waveId, wave.name || waveId)
+      ]);
       const regionals = rSnap.docs
-        .map((d) => Object.assign({ rmSlug: d.id }, d.data()))
+        .map((d) => Object.assign({ rmSlug: d.id, properties: byRm.get(d.id) || [] }, d.data()))
         .sort((a, b) => String(a.rmName || '').localeCompare(String(b.rmName || '')));
 
       return json(res, 200, { wave, regionals });
@@ -45,22 +74,33 @@ module.exports = async (req, res) => {
       const byRm = new Map();
 
       for (const w of open) {
-        const rSnap = await regCol(w.id).get();
+        const [rSnap, props] = await Promise.all([
+          regCol(w.id).get(),
+          propertiesByRegional(w.id, w.data.name || w.id)
+        ]);
         for (const d of rSnap.docs) {
           const r = d.data();
           if (!byRm.has(d.id)) {
-            byRm.set(d.id, { rmSlug: d.id, rmName: r.rmName || d.id, total: 0, verified: 0, waves: [] });
+            byRm.set(d.id, { rmSlug: d.id, rmName: r.rmName || d.id, total: 0, verified: 0, waves: [], properties: [] });
           }
           const agg = byRm.get(d.id);
           agg.total += r.total || 0;
           agg.verified += r.verified || 0;
           agg.waves.push({ id: w.id, name: w.data.name, total: r.total || 0, verified: r.verified || 0 });
+          agg.properties = agg.properties.concat(props.get(d.id) || []);
         }
       }
 
       const regionals = Array.from(byRm.values())
         .map((r) => Object.assign(r, { complete: r.total > 0 && r.verified === r.total }))
         .sort((a, b) => String(a.rmName).localeCompare(String(b.rmName)));
+
+      // Merging two waves breaks the per-wave ordering, so sort again.
+      for (const r of regionals) {
+        r.properties.sort((a, b) => (a.done === b.done
+          ? a.name.localeCompare(b.name)
+          : (a.done ? 1 : -1)));
+      }
 
       return json(res, 200, { waves: open.map((w) => waveSummary(w.id, w.data)), regionals });
     }

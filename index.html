@@ -86,6 +86,39 @@
   .banner{border-radius:8px;padding:11px 13px;font-size:13.5px;margin-bottom:14px}
   .banner.warn{background:var(--amber-soft);color:var(--amber);border:1px solid #f0dcb4}
   .banner.good{background:var(--green-soft);color:var(--green);border:1px solid #bfe4d4}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  /* ---- the outstanding board on the picker ---- */
+  .board-sum{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .board-sum .count{font-weight:700;font-size:18px;color:var(--navy)}
+  .rm-group{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;
+    background:#fff;overflow:hidden}
+  .rm-group[data-done="yes"]{border-color:#bfe4d4;background:#fbfefc}
+  .rm-head{display:flex;align-items:center;gap:10px;width:100%;padding:11px 13px;
+    background:none;border:0;font:inherit;text-align:left;cursor:pointer}
+  .rm-head:hover{background:#f6f8fb}
+  .rm-head .nm{font-weight:600;color:var(--ink);flex:1 1 auto;min-width:0}
+  .rm-head .ct{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .rm-head .caret{color:var(--muted);font-size:11px;transition:transform .18s ease}
+  .rm-group.open .rm-head .caret{transform:rotate(90deg)}
+  .rm-props{display:none;padding:2px 13px 11px;border-top:1px solid var(--line)}
+  .rm-group.open .rm-props{display:block}
+  .pline{display:flex;align-items:flex-start;gap:9px;padding:5px 0;font-size:14px;
+    border-bottom:1px dashed #eef1f6}
+  .pline:last-child{border-bottom:0}
+  .pline .nm{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+  .pline.done .nm{color:var(--muted)}
+  .pline .wv{font-size:11.5px;color:var(--muted);white-space:nowrap}
+  /* The tick is the whole point: green, and unmistakable at a glance. */
+  .tickbox{flex:0 0 auto;width:18px;height:18px;border-radius:50%;display:inline-flex;
+    align-items:center;justify-content:center;font-size:11px;line-height:1;font-weight:700;
+    margin-top:1px}
+  .tickbox.yes{background:var(--green);color:#fff}
+  .tickbox.no{background:#fff;border:1.5px solid var(--line);color:transparent}
+  .rm-head .tickbox{margin-top:0}
+  @media (max-width:560px){ .pline .wv{display:none} }
   .banner.err{background:var(--red-soft);color:var(--red);border:1px solid #f3c9c5}
   .banner.lock{background:#eef1f6;color:#3c4759;border:1px solid var(--line)}
   .banner.info{background:var(--blue-soft);color:var(--navy-2);border:1px solid #c9dff2}
@@ -256,6 +289,10 @@
       <select id="rmSel"><option value="">Select a name…</option></select>
     </div>
   </div>
+
+  <!-- The whole board, for anyone helping chase this up rather than filling
+       in their own portfolio. -->
+  <div class="panel hidden" id="boardPanel"></div>
 
   <div id="portfolio" class="hidden">
     <button type="button" class="backlink" id="backBtn">
@@ -594,6 +631,7 @@ function boot(){
       $('#waveSub').textContent = 'Nothing open right now';
       $('#pickPanel').innerHTML = '<h2>Nothing to review yet</h2>' +
         '<p class="hint">There are no open waves. If you were expecting one, check with Carlie.</p>';
+      $('#boardPanel').classList.add('hidden');
       return;
     }
 
@@ -616,9 +654,94 @@ function boot(){
     });
     sel.onchange = function(){ if (sel.value) openPortfolio(sel.value); };
 
+    state.boardRegionals = d.regionals || [];
+    renderBoard(state.boardRegionals);
+
     var rm = params.get('rm');
     if (rm) { sel.value = rm; openPortfolio(rm); }
   }).catch(fatal);
+}
+
+// ---------- the outstanding board ----------
+// Shown to everyone, not just admins: during a hand-off the people chasing this
+// up are not the person who built it, so the whole picture has to be on the page
+// they already have the link to.
+function renderBoard(regionals){
+  var box = $('#boardPanel');
+  box.innerHTML = '';
+  var regs = (regionals || []).filter(function(r){ return (r.total || 0) > 0; });
+  if (!regs.length) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+
+  var props = 0, done = 0;
+  regs.forEach(function(r){ props += r.total || 0; done += r.verified || 0; });
+  var rmLeft = regs.filter(function(r){ return !r.complete; }).length;
+
+  box.appendChild(el('h2',{ text:'Still outstanding' }));
+  box.appendChild(el('p',{ class:'hint',
+    text:'Everyone’s progress, so anyone helping can see what is left. A green tick ' +
+         'means that one is confirmed and needs nothing further.' }));
+
+  box.appendChild(el('div',{ class:'board-sum' },[
+    el('span',{ class:'count', text: done + ' of ' + props + ' confirmed' }),
+    el('span',{ class:'hint', style:'margin:0',
+      text: rmLeft === 0 ? 'Every Regional is finished.'
+            : rmLeft + ' Regional' + (rmLeft===1?'':'s') + ' still to finish' })
+  ]));
+
+  // Outstanding Regionals first and already open, finished ones collapsed under
+  // a tick -- the work to chase is what should be in front of you.
+  var ordered = regs.slice().sort(function(a,b){
+    if (!!a.complete !== !!b.complete) return a.complete ? 1 : -1;
+    return String(a.rmName||'').localeCompare(String(b.rmName||''));
+  });
+
+  var multiWave = (state.waves || []).length > 1;
+
+  ordered.forEach(function(r){
+    var g = el('div',{ class:'rm-group' + (r.complete ? '' : ' open') });
+    g.setAttribute('data-done', r.complete ? 'yes' : 'no');
+
+    var head = el('button',{ type:'button', class:'rm-head' },[
+      el('span',{ class:'tickbox ' + (r.complete ? 'yes' : 'no'),
+                  text: r.complete ? '✓' : '',
+                  'aria-hidden':'true' }),
+      el('span',{ class:'nm', text: r.rmName || r.rmSlug }),
+      el('span',{ class:'ct', text: (r.verified||0) + '/' + (r.total||0) + (r.complete ? ' ✓ done' : ' done') }),
+      el('span',{ class:'caret', text:'▶', 'aria-hidden':'true' })
+    ]);
+    head.setAttribute('aria-expanded', r.complete ? 'false' : 'true');
+    head.onclick = function(){
+      var nowOpen = !g.classList.contains('open');
+      g.classList.toggle('open', nowOpen);
+      head.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+    };
+    g.appendChild(head);
+
+    var list = el('div',{ class:'rm-props' });
+    var items = r.properties || [];
+    if (!items.length) {
+      // Counts come from the Regional's record and the names from the
+      // properties themselves, so say so rather than showing an empty box.
+      list.appendChild(el('p',{ class:'hint', style:'margin:8px 0 0',
+        text:'Property names are not available for this Regional. Open their ' +
+             'portfolio to see them.' }));
+    }
+    items.forEach(function(p){
+      var row = el('div',{ class:'pline' + (p.done ? ' done' : '') },[
+        el('span',{ class:'tickbox ' + (p.done ? 'yes' : 'no'),
+                    text: p.done ? '✓' : '', 'aria-hidden':'true' }),
+        el('span',{ class:'nm', text: p.name })
+      ]);
+      if (multiWave && p.waveName) row.appendChild(el('span',{ class:'wv', text:p.waveName }));
+      // Spoken aloud the tick is just a glyph, so state it.
+      row.appendChild(el('span',{ class:'sr-only',
+        text: p.done ? ' — confirmed' : ' — still outstanding' }));
+      list.appendChild(row);
+    });
+    g.appendChild(list);
+    box.appendChild(g);
+  });
 }
 
 function dateSuffix(w){
@@ -655,11 +778,38 @@ function showPicker(){
   state.rmSlug = null;
   $('#portfolio').classList.add('hidden');
   $('#pickPanel').classList.remove('hidden');
+  if (state.boardRegionals) $('#boardPanel').classList.remove('hidden');
   // Clear the selection, or picking the same wrong name again would do nothing.
   var sel = $('#rmSel');
   if (sel) sel.value = '';
   setUrl(location.pathname + currentQuery(null));
   window.scrollTo({ top:0, behavior:'smooth' });
+  // Coming back from a portfolio the board is stale, so bring the ticks up to
+  // date rather than showing work as outstanding that was just confirmed.
+  refreshBoard();
+}
+
+// Re-reads the roster in the background. Quiet on failure: the board is a
+// convenience, and a blip here must not disturb whoever is mid-review.
+function refreshBoard(){
+  var url = state.waveId
+    ? '/api/waves?wave=' + encodeURIComponent(state.waveId)
+    : '/api/waves?scope=open';
+  return api(url).then(function(d){
+    state.boardRegionals = d.regionals || [];
+    renderBoard(state.boardRegionals);
+    var sel = $('#rmSel');
+    if (sel) {
+      var keep = sel.value;
+      sel.innerHTML = '';
+      sel.appendChild(el('option', { value:'', text:'Select a name…' }));
+      state.boardRegionals.forEach(function(rg){
+        var tag = rg.complete ? ' ✓ complete' : ' — ' + (rg.verified || 0) + '/' + (rg.total || 0) + ' done';
+        sel.appendChild(el('option', { value:rg.rmSlug, text: rg.rmName + tag }));
+      });
+      sel.value = keep;
+    }
+  }).catch(function(){});
 }
 
 // Unwind the pushed entry where there is one, so in-app back and the phone's
@@ -687,6 +837,7 @@ function openPortfolio(rmSlug, opts){
     state.props = d.properties || [];
     state.waves = d.waves || state.waves;
     $('#pickPanel').classList.add('hidden');
+    $('#boardPanel').classList.add('hidden');
     $('#portfolio').classList.remove('hidden');
     // Restoring from a back/forward press must not stack another entry.
     (opts.fromHistory ? setUrl : pushUrl)(location.pathname + currentQuery(rmSlug));
