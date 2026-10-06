@@ -31,6 +31,12 @@ Object.assign(HEADER_MAP, {
   [norm('Sr Regional Manager')]: 'seniorRegionalManager',
   [norm('RVP')]: 'rvp',
   [norm('RVP Name')]: 'rvp',
+  // The Regional's own email. Not a property field -- it is carried on the
+  // regional record so the outstanding list can be copied into Outlook.
+  [norm('RM Email')]: '__rmEmail',
+  [norm('Regional Email')]: '__rmEmail',
+  [norm('Regional Manager Email')]: '__rmEmail',
+  [norm('RM Email Address')]: '__rmEmail',
   [norm('Tracking Numbers')]: 'trackingNumbers',
   [norm('Tracking Number')]: 'trackingNumbers',
   [norm('Property Website')]: 'propertyWebsite',
@@ -124,6 +130,7 @@ async function deleteAll(collectionRef) {
 function readRow(raw, unmatched) {
   const fields = {};
   const byDay = {};
+  let rmEmail = '';
 
   for (const [header, value] of Object.entries(raw)) {
     const h = norm(header);
@@ -140,6 +147,8 @@ function readRow(raw, unmatched) {
 
     const key = HEADER_MAP[h];
     if (!key) { if (String(header).trim()) unmatched.add(String(header).trim()); continue; }
+    // Belongs to the Regional, not the property, so it is kept out of fields.
+    if (key === '__rmEmail') { rmEmail = v; continue; }
     fields[key] = v;
   }
 
@@ -158,7 +167,7 @@ function readRow(raw, unmatched) {
     fields.officeHoursStruct = JSON.stringify(hours);
     fields.officeHours = formatHours(hours);
   }
-  return { fields, hoursParsed: !!hours };
+  return { fields, rmEmail, hoursParsed: !!hours };
 }
 
 module.exports = async (req, res) => {
@@ -235,7 +244,8 @@ module.exports = async (req, res) => {
       const propId = slug(`${incoming.propertyCode || ''}-${incoming.propertyName || ''}`) || `row-${idx}`;
       const prev = current[propId];
 
-      if (!regionals.has(rmSlug)) regionals.set(rmSlug, { rmSlug, rmName: incoming.rmName });
+      if (!regionals.has(rmSlug)) regionals.set(rmSlug, { rmSlug, rmName: incoming.rmName, email: '' });
+      if (parsed.rmEmail) regionals.get(rmSlug).email = parsed.rmEmail;
 
       // Confirmed work is never touched by an import.
       if (prev && prev.verified) {
@@ -294,7 +304,11 @@ module.exports = async (req, res) => {
     }
 
     for (const [rmSlug, r] of regionals) {
-      ops.push({ ref: regCol(waveId).doc(rmSlug), merge: true, data: { rmSlug: r.rmSlug, rmName: r.rmName } });
+      const regData = { rmSlug: r.rmSlug, rmName: r.rmName };
+      // Only write an address when the sheet carried one, so a blank column
+      // cannot wipe addresses entered by hand.
+      if (r.email) regData.email = r.email;
+      ops.push({ ref: regCol(waveId).doc(rmSlug), merge: true, data: regData });
     }
 
     await commitChunked(ops);

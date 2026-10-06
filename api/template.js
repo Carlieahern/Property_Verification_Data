@@ -7,6 +7,8 @@ const { json, isAdmin } = require('./_lib/util');
 
 // Columns the sheet supplies that are not verifiable fields.
 const EXTRA_COLUMNS = [
+  { header: 'RM Email',
+    note: "The Regional's email address. Not shown to anyone -- it lets the admin page copy the outstanding list straight into Outlook. Same value on every row for that Regional." },
   { header: 'Tracking Numbers',
     note: 'Known tracking numbers for this property, separated by a comma and a space. Any of these typed as a phone number is rejected.' }
 ];

@@ -185,6 +185,25 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Email addresses for the Regionals. The tool never sends anything; these
+    // exist so the outstanding list can be copied into Outlook in one go.
+    if (action === 'setEmails') {
+      if (!waveId) return json(res, 400, { error: 'wave is required.' });
+      const emails = (body.emails && typeof body.emails === 'object') ? body.emails : {};
+      const entries = Object.entries(emails);
+      if (!entries.length) return json(res, 400, { error: 'No addresses supplied.' });
+
+      const db = getDb();
+      for (let i = 0; i < entries.length; i += 400) {
+        const batch = db.batch();
+        for (const [rmSlug, addr] of entries.slice(i, i + 400)) {
+          batch.set(regCol(waveId).doc(rmSlug), { email: String(addr || '').trim() }, { merge: true });
+        }
+        await batch.commit();
+      }
+      return json(res, 200, { ok: true, updated: entries.length });
+    }
+
     // Mark work done without sending it back to a Regional -- for properties
     // that are finished in reality, such as ones confirmed under an earlier set
     // of questions, so nobody is asked to redo them.

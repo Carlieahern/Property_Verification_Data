@@ -428,15 +428,42 @@ function renderDash(){
       return r.rmName + ' — ' + left + ' of ' + (r.total||0) + ' outstanding: ' + (r.outstanding||[]).join(', ');
     }).join('\n');
 
+    // Addresses for the outstanding Regionals, in the form Outlook expects.
+    var withEmail = outstanding.filter(function(r){ return (r.email||'').trim(); });
+    var noEmail   = outstanding.filter(function(r){ return !(r.email||'').trim(); });
+    var emailLine = withEmail.map(function(r){ return r.email.trim(); }).join('; ');
+
     op.appendChild(el('div',{class:'inline',style:'margin-bottom:12px'},[
-      el('button',{class:'btn',text:'Copy names',onclick:function(){ copy(namesOnly,'Names copied'); }}),
+      el('button',{class:'btn',text:'Copy emails',
+        onclick:function(){
+          if(!emailLine) return toast('No email addresses on file for the outstanding Regionals.');
+          copy(emailLine, withEmail.length + ' address' + (withEmail.length===1?'':'es') + ' copied');
+        }}),
+      el('button',{class:'btn ghost',text:'Copy names',onclick:function(){ copy(namesOnly,'Names copied'); }}),
       el('button',{class:'btn ghost',text:'Copy names + properties',onclick:function(){ copy(detailed,'List copied'); }}),
       el('button',{class:'btn ghost',text:'Show as text',onclick:function(){
         var box = $('#outText');
         box.classList.toggle('hidden');
         if(!box.classList.contains('hidden')) box.focus();
+      }}),
+      el('button',{class:'btn ghost',text:'Manage emails',onclick:function(){
+        var box = $('#emailPanel');
+        box.classList.toggle('hidden');
+        if(!box.classList.contains('hidden')) renderEmailPanel();
       }})
     ]));
+
+    // Anyone outstanding without an address would be missed by Copy emails, so
+    // say who rather than letting the list come up quietly short.
+    if (noEmail.length) {
+      op.appendChild(el('div',{class:'banner warn',
+        text:'No email on file for ' + noEmail.length + ' outstanding Regional' +
+             (noEmail.length===1?'':'s') + ': ' +
+             noEmail.map(function(r){ return r.rmName; }).join(', ') +
+             '. Use "Manage emails" to add them.'}));
+    }
+
+    op.appendChild(el('div',{id:'emailPanel',class:'hidden'}));
     var ta = el('textarea',{id:'outText',class:'hidden',rows:'8',readonly:'readonly'});
     ta.value = detailed;
     op.appendChild(ta);
@@ -657,6 +684,86 @@ function renderAddForm(){
 
 
 $('#addClearBtn').addEventListener('click', function(){ renderAddForm(); $('#addMsg').innerHTML=''; });
+
+// ---------- Regional email addresses ----------
+// Stored only so the outstanding list can be copied into Outlook. The tool
+// never sends anything itself.
+function renderEmailPanel(){
+  var box = $('#emailPanel');
+  box.innerHTML = '';
+  var regs = ((state.dash && state.dash.regionals) || []).slice()
+    .sort(function(a,b){ return String(a.rmName||'').localeCompare(String(b.rmName||'')); });
+  if (!regs.length) { box.appendChild(el('p',{class:'mini',text:'No regionals in this wave yet.'})); return; }
+
+  box.appendChild(el('h2',{text:'Regional email addresses',style:'margin-top:18px'}));
+  box.appendChild(el('p',{class:'hint',
+    text:'Used only by "Copy emails". Paste a list below, or type them in one at a time.'}));
+
+  // Bulk paste: one Regional per line, name and address in any order,
+  // separated by a comma, semicolon, tab or whitespace.
+  var paste = el('textarea',{rows:'5',
+    placeholder:'Amber Davis, amber.davis@rpmliving.com\nMara Judd  mara.judd@rpmliving.com'});
+  box.appendChild(el('label',{class:'fl',text:'Paste a list'}));
+  box.appendChild(paste);
+
+  var inputs = {};
+  var grid = el('div',{class:'grid g2',style:'margin-top:14px'});
+  regs.forEach(function(r){
+    var row = el('div',{class:'row',style:'margin-bottom:8px'});
+    row.appendChild(el('label',{class:'fl',text:r.rmName}));
+    var i = el('input',{type:'email',placeholder:'name@rpmliving.com'});
+    i.value = r.email || '';
+    inputs[r.rmSlug] = i;
+    row.appendChild(i);
+    grid.appendChild(row);
+  });
+
+  box.appendChild(el('div',{class:'inline',style:'margin-top:10px'},[
+    el('button',{class:'btn ghost',text:'Match pasted list',onclick:function(){
+      var matched = 0, unmatched = [];
+      paste.value.split(/\r?\n/).forEach(function(line){
+        if (!line.trim()) return;
+        var addr = (line.match(/[^\s,;<>]+@[^\s,;<>]+\.[^\s,;<>]+/) || [])[0];
+        if (!addr) return;
+        // Whatever is left on the line, minus the address, is the name.
+        var name = line.replace(addr,'').replace(/[,;<>\t]/g,' ').trim();
+        var key = squashName(name);
+        var hit = regs.filter(function(r){ return squashName(r.rmName) === key; })[0];
+        // Fall back to matching on the address itself, e.g. amber.davis@...
+        if (!hit) hit = regs.filter(function(r){
+          return squashName(r.rmName) === squashName(addr.split('@')[0].replace(/[._-]/g,' '));
+        })[0];
+        if (hit) { inputs[hit.rmSlug].value = addr; matched++; }
+        else unmatched.push(name || addr);
+      });
+      toast(matched + ' matched' + (unmatched.length ? ', ' + unmatched.length + ' not recognised' : ''));
+      if (unmatched.length) {
+        box.appendChild(el('div',{class:'banner warn',style:'margin-top:10px',
+          text:'Could not match: ' + unmatched.join(', ') + '. Add those by hand below.'}));
+      }
+    }}),
+    el('button',{class:'btn',text:'Save addresses',onclick:function(ev){
+      var b = ev.currentTarget; b.disabled = true; b.textContent = 'Saving…';
+      var emails = {}, bad = false;
+      Object.keys(inputs).forEach(function(k){
+        var v = inputs[k].value.trim();
+        inputs[k].style.borderColor = '';
+        if (v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { inputs[k].style.borderColor = '#b3261e'; bad = true; }
+        emails[k] = v;
+      });
+      if (bad) { b.disabled=false; b.textContent='Save addresses'; return toast('One or more addresses look wrong.'); }
+      api('/api/admin',{ method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ action:'setEmails', waveId: state.waveId, emails: emails }) })
+        .then(function(){ toast('Addresses saved'); return loadDash(); })
+        .catch(function(e){ toast(e.message); })
+        .then(function(){ b.disabled=false; b.textContent='Save addresses'; });
+    }})
+  ]));
+
+  box.appendChild(grid);
+}
+
+function squashName(v){ return String(v||'').toLowerCase().replace(/[^a-z]/g,''); }
 
 // Mark everything outstanding for one Regional as done, without sending it back
 // to them. For work that is finished in reality.
